@@ -2,12 +2,12 @@
 pragma solidity ^0.8.26;
 
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract ProoFund is ReentrancyGuard{
+contract ProoFund is ReentrancyGuard, Ownable{
 
     //string public title;
     //string public description;
-    address payable public immutable beneficiary;
     uint256 public goalAmount;
     uint256 public totalRaised;
     uint256 public deadline;
@@ -18,56 +18,80 @@ contract ProoFund is ReentrancyGuard{
 
     mapping (address => uint256) public contributions;
 
-    constructor(uint256 _goalAmount, uint256 _deadline) {
-        require (_deadline > block.timestamp);
+    event Funded(address indexed user, uint256 amount);
+    event Withdrawn(address indexed user, uint256 amount);
+    event Refunded(address indexed user, uint256 amount);
+    event CampaignFinished(CAMPAIGN_STATUS status);
+
+    error InvalidDeadline();
+    error CampaignNotActive();
+    error CampaignStillActive();
+    error CampaignExpired();
+    error CampaignNotSuccessful();
+    error ZeroContribution();
+    error FundsAlreadyWithdrawn();
+    error TransferFailed();
+    error NoContributionToRefund();
+    error RefundNotAvailable();
+
+
+    constructor(uint256 _goalAmount, uint256 _deadline, address initialOwner) Ownable(initialOwner) {
+        if (_deadline <= block.timestamp) revert InvalidDeadline();
         goalAmount = _goalAmount;
         deadline = _deadline;
-        beneficiary = payable(msg.sender);
         fundsWithdrawn = false;
         status = CAMPAIGN_STATUS.ACTIVE;
     }
 
-    modifier onlyOwner() {
-        require(msg.sender == beneficiary);
-        _;
-    }
-
-    function fund() public payable {
-        require(status == CAMPAIGN_STATUS.ACTIVE);
-        require(deadline > block.timestamp);
-        require(msg.value>0);
+    function fund() external payable {
+        if(status != CAMPAIGN_STATUS.ACTIVE) revert CampaignNotActive();
+        if(deadline <= block.timestamp) revert CampaignExpired();
+        if(msg.value == 0) revert ZeroContribution();
         contributions[msg.sender] += msg.value;
         totalRaised += msg.value;
+        emit Funded(msg.sender, msg.value);
     }
 
-    function withdraw() public onlyOwner nonReentrant{
+    function withdraw() external onlyOwner nonReentrant{
         uint256 amount = address(this).balance;
-        require (status == CAMPAIGN_STATUS.SUCCESS, "Campaign not finished");
-        require (fundsWithdrawn == false, "The funds are already withdrawn");
+        if(status != CAMPAIGN_STATUS.SUCCESS) revert CampaignNotSuccessful();
+        if(fundsWithdrawn == true) revert FundsAlreadyWithdrawn();
         fundsWithdrawn = true;
-        (bool success, ) = beneficiary.call{value: amount}("");
-        require(success, "Transfer failed");
+        (bool success, ) = owner().call{value: amount}("");
+        if (!success) revert TransferFailed();
+        emit Withdrawn(owner(), amount);
     }
 
-    function refund() public nonReentrant{
+    function refund() external nonReentrant{
         uint256 amount = contributions[msg.sender];
-        require(contributions[msg.sender] > 0);
-        require(status == CAMPAIGN_STATUS.FAILED || status == CAMPAIGN_STATUS.CANCELLED);
-        (bool success, ) = msg.sender.call{value: amount}("");
-        require(success, "Transfer failed");
+        if(contributions[msg.sender] == 0) revert NoContributionToRefund();
+        if(status == CAMPAIGN_STATUS.SUCCESS) revert RefundNotAvailable();
+        if(status == CAMPAIGN_STATUS.ACTIVE && block.timestamp < deadline + 7 days) revert RefundNotAvailable();
+        if (status == CAMPAIGN_STATUS.ACTIVE && block.timestamp >= deadline + 7 days) {
+            status = CAMPAIGN_STATUS.CANCELLED;
+            emit CampaignFinished(status);
+        }
         contributions[msg.sender] = 0;
+        (bool success, ) = msg.sender.call{value: amount}("");
+        if (!success) revert TransferFailed();
+        emit Refunded(msg.sender, amount);
     }
 
-    function finishCampaign() public onlyOwner {
-        require(status == CAMPAIGN_STATUS.ACTIVE);
+    function finishCampaign() external onlyOwner {
+        if(status != CAMPAIGN_STATUS.ACTIVE) revert CampaignNotActive();
+        if(totalRaised < goalAmount && block.timestamp <= deadline) revert CampaignStillActive();
         if (totalRaised >= goalAmount) {
             status = CAMPAIGN_STATUS.SUCCESS;
         }
-        else if (totalRaised <= goalAmount && block.timestamp > deadline) {
+        else {
             status = CAMPAIGN_STATUS.FAILED;
         }
-        else {
-            status = CAMPAIGN_STATUS.CANCELLED;
-        }
+        emit CampaignFinished(status);
+    }
+
+    function cancelCampaign() external onlyOwner{
+        if(status != CAMPAIGN_STATUS.ACTIVE) revert CampaignNotActive();
+        status = CAMPAIGN_STATUS.CANCELLED;
+        emit CampaignFinished(status);
     }
 }
