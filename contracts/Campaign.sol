@@ -4,7 +4,7 @@ pragma solidity ^0.8.26;
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 
-contract ProoFund is ReentrancyGuard, Ownable{
+contract Campaign is ReentrancyGuard, Ownable{
 
     //string public title;
     //string public description;
@@ -33,10 +33,12 @@ contract ProoFund is ReentrancyGuard, Ownable{
     error TransferFailed();
     error NoContributionToRefund();
     error RefundNotAvailable();
+    error InvalidGoalAmount();
 
 
     constructor(uint256 _goalAmount, uint256 _deadline, address initialOwner) Ownable(initialOwner) {
         if (_deadline <= block.timestamp) revert InvalidDeadline();
+        if (_goalAmount <= 0) revert InvalidGoalAmount(); 
         goalAmount = _goalAmount;
         deadline = _deadline;
         fundsWithdrawn = false;
@@ -79,7 +81,7 @@ contract ProoFund is ReentrancyGuard, Ownable{
 
     function finishCampaign() external onlyOwner {
         if(status != CAMPAIGN_STATUS.ACTIVE) revert CampaignNotActive();
-        if(totalRaised < goalAmount && block.timestamp <= deadline) revert CampaignStillActive();
+        if(totalRaised < goalAmount && block.timestamp < deadline) revert CampaignStillActive();
         if (totalRaised >= goalAmount) {
             status = CAMPAIGN_STATUS.SUCCESS;
         }
