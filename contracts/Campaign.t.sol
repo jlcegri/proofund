@@ -13,7 +13,10 @@ contract CampaignTest is Test {
     // constructor() tests
 
     function test_ValidCampaign() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        vm.expectEmit();
+        emit Campaign.CampaignCreated(initialOwner, goalAmount, deadline);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
+
         assertEq(campaign.owner(), initialOwner);
         assertEq(campaign.goalAmount(), goalAmount);
         assertEq(campaign.deadline(), deadline);
@@ -25,46 +28,46 @@ contract CampaignTest is Test {
     function test_InvalidDeadline() public {
         vm.expectRevert(Campaign.InvalidDeadline.selector);
         deadline = block.timestamp;
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
     }
 
     function test_InvalidGoalAmount() public {
         vm.expectRevert(Campaign.InvalidGoalAmount.selector);
         goalAmount = 0;
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
     }
 
     function test_InvalidInitialOwner() public {
         vm.expectRevert();
         initialOwner = address(0);
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
     }
 
     // fund() tests
 
     function test_ValidFund() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
         vm.expectEmit();
         emit Campaign.Funded(initialOwner, 1 ether);
         campaign.fund{value: 1 ether}();
     }
 
     function test_CampaignNotActiveFund() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
         campaign.cancelCampaign();
         vm.expectRevert(Campaign.CampaignNotActive.selector);
         campaign.fund{value: 1 ether}();
     }
 
     function test_CampaignExpired() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
         vm.warp(block.timestamp + 7 days);
         vm.expectRevert(Campaign.CampaignExpired.selector);
         campaign.fund{value: 1 ether}();
     }
 
     function test_ZeroContribution() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
         vm.expectRevert(Campaign.ZeroContribution.selector);
         campaign.fund{value: 0 ether}();
     }
@@ -73,7 +76,7 @@ contract CampaignTest is Test {
 
     function test_ValidWithdraw() public {
         address owner = makeAddr("owner");
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         campaign.fund{value: 1 ether}();
 
@@ -89,7 +92,7 @@ contract CampaignTest is Test {
     function test_OnlyOwnerWithdraw() public {
         address owner = makeAddr("owner");
         address hacker = makeAddr("hacker");
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         campaign.fund{value: 1 ether}();
 
@@ -103,7 +106,7 @@ contract CampaignTest is Test {
 
     function test_CampaignNotSuccessful() public {
         address owner = makeAddr("owner");
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         vm.prank(owner);
         vm.expectRevert(Campaign.CampaignNotSuccessful.selector);
@@ -121,7 +124,7 @@ contract CampaignTest is Test {
     }
 
     function test_WithdrawTransferFailed() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
 
         campaign.fund{value: 1 ether}();
 
@@ -133,7 +136,7 @@ contract CampaignTest is Test {
 
     function test_FundsAlreadyWithdrawn() public {
         address owner = makeAddr("owner");
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         campaign.fund{value: 1 ether}();
 
@@ -156,7 +159,7 @@ contract CampaignTest is Test {
         address funder = makeAddr("funder");
         vm.deal(funder, 1 ether);
 
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         vm.prank(funder);
         campaign.fund{value: 1 ether}();
@@ -175,7 +178,7 @@ contract CampaignTest is Test {
         address funder = makeAddr("funder");
         vm.deal(funder, 1 ether);
 
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         vm.prank(funder);
         campaign.fund{value: 1 ether}();
@@ -196,7 +199,7 @@ contract CampaignTest is Test {
         address funder = makeAddr("funder");
         vm.deal(funder, 1 ether);
 
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         vm.prank(funder);
         campaign.fund{value: 1 ether}();
@@ -214,7 +217,7 @@ contract CampaignTest is Test {
         address funder = makeAddr("funder");
         vm.deal(funder, 1 ether);
 
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         vm.prank(funder);
         campaign.fund{value: 1 ether}();
@@ -229,7 +232,7 @@ contract CampaignTest is Test {
         address funder = makeAddr("funder");
         vm.deal(funder, 1 ether);
 
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         vm.prank(funder);
         campaign.fund{value: 1 ether}();
@@ -245,7 +248,7 @@ contract CampaignTest is Test {
     }
 
     function test_RefundTransferFailed() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
 
         campaign.fund{value: 1 ether}();
 
@@ -258,7 +261,7 @@ contract CampaignTest is Test {
     // finishCampaign() tests
 
     function test_ValidFinishCampaign() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
 
         campaign.fund{value: 1 ether}();
 
@@ -271,7 +274,7 @@ contract CampaignTest is Test {
         address hacker = makeAddr("hacker");
         address owner = makeAddr("owner");
 
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         vm.expectRevert();
         vm.prank(hacker);
@@ -279,7 +282,7 @@ contract CampaignTest is Test {
     }
 
     function test_CampaignNotActiveFinishCampaign() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
 
         campaign.fund{value: 1 ether}();
 
@@ -290,7 +293,7 @@ contract CampaignTest is Test {
     }
 
     function test_CampaignStillActive() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
 
         vm.expectRevert(Campaign.CampaignStillActive.selector);
         campaign.finishCampaign();
@@ -299,7 +302,7 @@ contract CampaignTest is Test {
     // cancelCampaign() tests
 
     function test_ValidCancelCampaign() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
 
         vm.expectEmit();
         emit Campaign.CampaignFinished(Campaign.CAMPAIGN_STATUS.CANCELLED);
@@ -309,7 +312,7 @@ contract CampaignTest is Test {
     function test_OnlyOwnerCancelCampaign() public {
         address hacker = makeAddr("hacker");
         address owner = makeAddr("owner");
-        campaign = new Campaign(goalAmount, deadline, owner);
+        campaign = new Campaign(owner, goalAmount, deadline);
 
         vm.prank(hacker);
         vm.expectRevert();
@@ -317,7 +320,7 @@ contract CampaignTest is Test {
     }
 
     function test_CampaignNotActiveCancelCampaign() public {
-        campaign = new Campaign(goalAmount, deadline, initialOwner);
+        campaign = new Campaign(initialOwner, goalAmount, deadline);
 
         campaign.cancelCampaign();
 

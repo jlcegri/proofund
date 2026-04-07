@@ -18,6 +18,7 @@ contract Campaign is ReentrancyGuard, Ownable{
 
     mapping (address => uint256) public contributions;
 
+    event CampaignCreated(address indexed user, uint256 goal, uint256 deadline);
     event Funded(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event Refunded(address indexed user, uint256 amount);
@@ -36,13 +37,14 @@ contract Campaign is ReentrancyGuard, Ownable{
     error InvalidGoalAmount();
 
 
-    constructor(uint256 _goalAmount, uint256 _deadline, address initialOwner) Ownable(initialOwner) {
+    constructor(address initialOwner, uint256 _goalAmount, uint256 _deadline) Ownable(initialOwner) {
         if (_deadline <= block.timestamp) revert InvalidDeadline();
         if (_goalAmount <= 0) revert InvalidGoalAmount(); 
         goalAmount = _goalAmount;
         deadline = _deadline;
         fundsWithdrawn = false;
         status = CAMPAIGN_STATUS.ACTIVE;
+        emit CampaignCreated(initialOwner, _goalAmount, _deadline);
     }
 
     function fund() external payable {
