@@ -21,3 +21,6 @@
 
 # Examples
 /examples
+
+# Ignition parameters
+/ignition/parameters.json
