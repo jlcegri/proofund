@@ -1,4 +1,4 @@
-export const wagmiAbi = [
+export const campaignAbi = [
     {
       "inputs": [
         {
@@ -15,6 +15,11 @@ export const wagmiAbi = [
           "internalType": "uint256",
           "name": "_deadline",
           "type": "uint256"
+        },
+        {
+          "internalType": "string",
+          "name": "_metadataURI",
+          "type": "string"
         }
       ],
       "stateMutability": "nonpayable",
@@ -58,6 +63,11 @@ export const wagmiAbi = [
     {
       "inputs": [],
       "name": "NoContributionToRefund",
+      "type": "error"
+    },
+    {
+      "inputs": [],
+      "name": "NoMetadata",
       "type": "error"
     },
     {
@@ -122,6 +132,12 @@ export const wagmiAbi = [
           "internalType": "uint256",
           "name": "deadline",
           "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "string",
+          "name": "metadataURI",
+          "type": "string"
         }
       ],
       "name": "CampaignCreated",
@@ -297,6 +313,19 @@ export const wagmiAbi = [
     },
     {
       "inputs": [],
+      "name": "metadataURI",
+      "outputs": [
+        {
+          "internalType": "string",
+          "name": "",
+          "type": "string"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "owner",
       "outputs": [
         {
@@ -368,4 +397,4 @@ export const wagmiAbi = [
       "stateMutability": "nonpayable",
       "type": "function"
     }
-]
+  ] as const;
