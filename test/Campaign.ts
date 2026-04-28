@@ -11,6 +11,7 @@ describe("Campaign", async function () {
   const testClient = await viem.getTestClient();
   const sevenDays = 7 * 24 * 60 * 60;
   const fourteenDays = 14 * 24 * 60 * 60;
+  const metadata = "https://ipfs.io/proofund";
 
   async function getDeadline() {
     const block = await publicClient.getBlock();
@@ -25,6 +26,7 @@ describe("Campaign", async function () {
       ownerWalletClient.account.address,
       parseEther("1"),
       await getDeadline(),
+      metadata
     ]);
 
     const fundTx = campaign.write.fund({
@@ -91,6 +93,7 @@ describe("Campaign", async function () {
       ownerWalletClient.account.address,
       parseEther("10"), //10 ETH
       await getDeadline(),
+      metadata
     ]);
 
     const fundTx = campaign.write.fund({
@@ -161,6 +164,7 @@ it("A canceled campaign should allow refunds to the funder", async function () {
       ownerWalletClient.account.address,
       parseEther("10"), //10 ETH
       await getDeadline(),
+      metadata
     ]);
 
     const fundTx = campaign.write.fund({
@@ -227,6 +231,7 @@ it("A canceled campaign should allow refunds to the funder", async function () {
       ownerWalletClient.account.address,
       parseEther("10"), //10 ETH
       await getDeadline(),
+      metadata
     ]);
 
     const fundTx = campaign.write.fund({
@@ -291,6 +296,7 @@ it("A canceled campaign should allow refunds to the funder", async function () {
       ownerWalletClient.account.address,
       parseEther("2"), //10 ETH
       await getDeadline(),
+      metadata
     ]);
 
     const aliceFundTx = campaign.write.fund({
@@ -375,6 +381,7 @@ it("A canceled campaign should allow refunds to the funder", async function () {
       ownerWalletClient.account.address,
       parseEther("10"), //10 ETH
       await getDeadline(),
+      metadata
     ]);
 
     const aliceFundTx = campaign.write.fund({
@@ -480,6 +487,7 @@ it("A canceled campaign should allow refunds to the funder", async function () {
       ownerWalletClient.account.address,
       parseEther("10"), //10 ETH
       await getDeadline(),
+      metadata
     ]);
 
     const aliceFundTx = campaign.write.fund({
@@ -499,6 +507,7 @@ it("A canceled campaign should allow refunds to the funder", async function () {
       ownerWalletClient.account.address,
       parseEther("10"), //10 ETH
       await getDeadline(),
+      metadata
     ]);
 
     const finishCampaignTx = campaign.write.finishCampaign({

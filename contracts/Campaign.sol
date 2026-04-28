@@ -6,19 +6,18 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 
 contract Campaign is ReentrancyGuard, Ownable{
 
-    //string public title;
-    //string public description;
+    enum CAMPAIGN_STATUS {ACTIVE, SUCCESS, FAILED, CANCELLED}
+
     uint256 public goalAmount;
     uint256 public totalRaised;
     uint256 public deadline;
-    enum CAMPAIGN_STATUS {ACTIVE, SUCCESS, FAILED, CANCELLED}
     CAMPAIGN_STATUS public status;
     bool public fundsWithdrawn;
-    //bool public allowWithdrawIfFails;
+    string public metadataURI;
 
     mapping (address => uint256) public contributions;
 
-    event CampaignCreated(address indexed user, uint256 goal, uint256 deadline);
+    event CampaignCreated(address indexed user, uint256 goal, uint256 deadline, string metadataURI);
     event Funded(address indexed user, uint256 amount);
     event Withdrawn(address indexed user, uint256 amount);
     event Refunded(address indexed user, uint256 amount);
@@ -35,16 +34,19 @@ contract Campaign is ReentrancyGuard, Ownable{
     error NoContributionToRefund();
     error RefundNotAvailable();
     error InvalidGoalAmount();
+    error NoMetadata();
 
 
-    constructor(address initialOwner, uint256 _goalAmount, uint256 _deadline) Ownable(initialOwner) {
+    constructor(address initialOwner, uint256 _goalAmount, uint256 _deadline, string memory _metadataURI) Ownable(initialOwner) {
         if (_deadline <= block.timestamp) revert InvalidDeadline();
         if (_goalAmount <= 0) revert InvalidGoalAmount(); 
+        if (bytes(_metadataURI).length == 0) revert NoMetadata();
         goalAmount = _goalAmount;
         deadline = _deadline;
+        metadataURI = _metadataURI;
         fundsWithdrawn = false;
         status = CAMPAIGN_STATUS.ACTIVE;
-        emit CampaignCreated(initialOwner, _goalAmount, _deadline);
+        emit CampaignCreated(initialOwner, _goalAmount, _deadline, _metadataURI);
     }
 
     function fund() external payable {
