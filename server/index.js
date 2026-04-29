@@ -83,7 +83,7 @@ async function uploadJSONToIPFS(metadata) {
   return `ipfs://${response.data.IpfsHash}`;
 }
 
-app.post("/api/campaign-metadata", upload.array("images", 5), async (req, res) => {
+app.post("/api/upload", upload.array("images", 5), async (req, res) => {
   try {
     const { title, description } = req.body;
     const files = req.files || [];
