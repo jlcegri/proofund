@@ -1,80 +1,56 @@
-import { Link } from "react-router-dom";
-import { useConnection, useConnect, useConnectors } from "wagmi";
-
-import "../../styles/app-shell.css";
 import "./styles.css";
 
-function shortenAddress(address: `0x${string}`) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
 function Home() {
-  const connection = useConnection();
-  const connect = useConnect();
-  const connectors = useConnectors();
-  const primaryConnector = connectors[0];
-  const isConnected = connection.status === "connected";
-
   return (
-    <main className="app home">
-      <section className="panel home-panel">
-        <span className="home-badge">Crowdfunding onchain</span>
+    <main className="home">
+      <section className="home-hero">
+        <div className="home-hero-content">
+          <span className="home-badge">Decentralized crowdfunding</span>
 
-        <h1 className="app-title">Bienvenido a Proofund</h1>
+          <h1>Fund transparent campaigns with blockchain</h1>
 
-        <p>
-          Comienza a crear tus campanas. Conecta tu wallet y publica tu primera
-          campana en pocos pasos.
-        </p>
+          <p>
+            Proofund allows users to create and support crowdfunding campaigns
+            using smart contracts and decentralized metadata storage through IPFS.
+          </p>
 
-        <div className="home-actions">
-          {isConnected ? (
-            <Link
-              className="button button--primary button--full-mobile home-link-button"
-              to="/campaigns/create"
-            >
-              Comienza a crear
-            </Link>
-          ) : (
-            <button
-              className="button button--primary button--full-mobile"
-              disabled={!primaryConnector || connect.isPending}
-              type="button"
-              onClick={() => {
-                if (!primaryConnector) return;
-
-                connect.mutate({ connector: primaryConnector });
-              }}
-            >
-              {connect.isPending ? "Conectando..." : "Conectar wallet"}
+          <div className="home-actions">
+            <button className="home-primary-button">
+              Create campaign
             </button>
-          )}
+
+            <button className="home-secondary-button">
+              Explore campaigns
+            </button>
+          </div>
         </div>
 
-        {isConnected && connection.address && (
-          <div className="panel wallet-status home-wallet-status">
-            <p>
-              <strong>Wallet:</strong> {shortenAddress(connection.address)}
-            </p>
-            <p>
-              <strong>Red:</strong> {connection.chain?.name}
-            </p>
+        <div className="home-hero-card">
+          <h2>How it works</h2>
+
+          <div className="home-step">
+            <strong>1. Create</strong>
+            <span>Upload campaign metadata and define the funding goal.</span>
           </div>
-        )}
 
-        {!isConnected && (
-          <p className="home-helper">
-            {primaryConnector
-              ? `Compatible con ${primaryConnector.name}.`
-              : "No hay wallets disponibles en este navegador."}
-          </p>
-        )}
+          <div className="home-step">
+            <strong>2. Fund</strong>
+            <span>Users contribute directly through the smart contract.</span>
+          </div>
 
-        {connect.error && (
-          <p className="status-message status-message--error">
-            Error: {connect.error.message}
-          </p>
-        )}
+          <div className="home-step">
+            <strong>3. Settle</strong>
+            <span>Funds are withdrawn or refunded depending on the result.</span>
+          </div>
+        </div>
+      </section>
+
+      <section className="home-section">
+        <h2>Featured campaigns</h2>
+        <p>
+          Recently created campaigns will appear here with their image, title and
+          description.
+        </p>
       </section>
     </main>
   );
