@@ -29,7 +29,7 @@ export const campaignFactoryAbi = [
         {
           "indexed": false,
           "internalType": "string",
-          "name": "metadata",
+          "name": "metadataURI",
           "type": "string"
         }
       ],
@@ -93,7 +93,7 @@ export const campaignFactoryAbi = [
         },
         {
           "internalType": "string",
-          "name": "metadata",
+          "name": "metadataURI",
           "type": "string"
         }
       ],

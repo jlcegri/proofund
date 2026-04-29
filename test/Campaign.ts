@@ -18,6 +18,21 @@ describe("Campaign", async function () {
     return block.timestamp + BigInt(sevenDays);
   }
 
+  it("Factory should attach the metadata URI to the created campaign", async function () {
+    const factory = await viem.deployContract("CampaignFactory");
+    const deadline = await getDeadline();
+
+    await factory.write.createCampaign(
+      [parseEther("1"), deadline, metadata],
+      { account: ownerWalletClient.account.address },
+    );
+
+    const [campaignAddress] = await factory.read.getCampaigns();
+    const campaign = await viem.getContractAt("Campaign", campaignAddress);
+
+    assert.equal(await campaign.read.metadataURI(), metadata);
+  });
+
 
   // 1. ---------------- Should allow a funded campaign to be finished successfully and withdrawn by the owner ----------------
 

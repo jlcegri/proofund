@@ -11,16 +11,16 @@ contract CampaignFactory {
         address indexed campaign,
         uint256 goalAmount,
         uint256 deadline,
-        string metadata
+        string metadataURI
     );
 
-    function createCampaign(uint256 goalAmount, uint256 deadline, string calldata metadata) external returns (address) {
-        Campaign campaign = new Campaign(msg.sender, goalAmount, deadline, metadata);
+    function createCampaign(uint256 goalAmount, uint256 deadline, string calldata metadataURI) external returns (address) {
+        Campaign campaign = new Campaign(msg.sender, goalAmount, deadline, metadataURI);
 
         campaigns.push(address(campaign));
         campaignsByOwner[msg.sender].push(address(campaign));
 
-        emit CampaignCreated(msg.sender, address(campaign), goalAmount, deadline, metadata);
+        emit CampaignCreated(msg.sender, address(campaign), goalAmount, deadline, metadataURI);
 
         return address(campaign);
     }
