@@ -1,0 +1,74 @@
+.home {
+  min-height: 100svh;
+  display: grid;
+  align-content: center;
+}
+
+.home-panel {
+  position: relative;
+  padding: clamp(28px, 6vw, 56px);
+  overflow: hidden;
+}
+
+.home-panel::before {
+  content: "";
+  position: absolute;
+  top: -120px;
+  right: -90px;
+  width: 260px;
+  height: 260px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(15, 118, 110, 0.18), transparent 70%);
+}
+
+.home-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 34px;
+  padding: 0 12px;
+  border-radius: 999px;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.home-link-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
+.home-wallet-status {
+  width: min(420px, 100%);
+  margin-top: 20px;
+}
+
+.home-helper {
+  margin: 16px 0 0;
+  color: var(--muted);
+}
+
+.home .status-message {
+  margin-top: 16px;
+}
+
+@media (max-width: 760px) {
+  .home-panel {
+    padding: 24px 20px;
+  }
+
+  .home-actions {
+    flex-direction: column;
+  }
+}
