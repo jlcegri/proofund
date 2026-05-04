@@ -1,13 +1,17 @@
+import { useNavigate } from "react-router-dom";
 import "./styles.css";
 
 function Home() {
+
+  const navigate = useNavigate();
+
   return (
     <main className="home">
       <section className="home-hero">
         <div className="home-hero-content">
           <span className="home-badge">Decentralized crowdfunding</span>
 
-          <h1>Fund transparent campaigns with blockchain</h1>
+          <h1>Welcome to Proofund!</h1>
 
           <p>
             Proofund allows users to create and support crowdfunding campaigns
@@ -15,11 +19,17 @@ function Home() {
           </p>
 
           <div className="home-actions">
-            <button className="home-primary-button">
+            <button
+              className="home-primary-button"
+              onClick={() => navigate("/campaigns/create")}
+            >
               Create campaign
             </button>
 
-            <button className="home-secondary-button">
+            <button
+              className="home-secondary-button"
+              onClick={() => navigate("/campaigns/explore")}
+            >
               Explore campaigns
             </button>
           </div>
@@ -43,14 +53,6 @@ function Home() {
             <span>Funds are withdrawn or refunded depending on the result.</span>
           </div>
         </div>
-      </section>
-
-      <section className="home-section">
-        <h2>Featured campaigns</h2>
-        <p>
-          Recently created campaigns will appear here with their image, title and
-          description.
-        </p>
       </section>
     </main>
   );

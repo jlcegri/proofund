@@ -1,0 +1,57 @@
+.app-navbar {
+  width: 100%;
+  height: 72px;
+  padding: 0 1.5rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  position: fixed;
+  z-index: 9999;
+}
+
+.app-main {
+  padding-top: 72px;
+}
+
+.app-navbar-brand {
+  color: var(--heading);
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.wallet-button {
+  border: 0;
+  border-radius: 0.8rem;
+  padding: 0.7rem 1rem;
+  background: var(--accent);
+  color: white;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.wallet-button:hover {
+  background: var(--accent-hover);
+}
+
+.wallet-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.navbar-brand-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.navbar-brand-link:visited {
+  color: inherit;
+}
+
+.navbar-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}

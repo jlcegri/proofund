@@ -17,14 +17,14 @@
 }
 
 .home-badge {
-  display: inline-block;
+  display: contents;
   margin-bottom: 1rem;
   padding: 0.35rem 0.75rem;
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent);
   font-weight: 700;
-  font-size: 0.9rem;
+  font-size: 1.5rem;
 }
 
 .home-hero h1 {
@@ -104,26 +104,6 @@
 }
 
 .home-step span {
-  color: var(--muted);
-}
-
-.home-section {
-  width: min(1120px, 100%);
-  margin: 3rem auto 0;
-  padding: 2rem;
-  border-radius: 1.5rem;
-  background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: var(--shadow);
-}
-
-.home-section h2 {
-  margin: 0;
-  color: var(--heading);
-}
-
-.home-section p {
-  margin: 0.75rem 0 0;
   color: var(--muted);
 }
 
