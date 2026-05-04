@@ -1,8 +1,6 @@
 import {
   useConnection,
-  useConnect,
   useConnectors,
-  useDisconnect,
   useReadContract,
   useWaitForTransactionReceipt,
   useWriteContract,
@@ -55,14 +53,8 @@ function getMetadataImage(metadata: CampaignMetadata) {
   return getString(metadata.images) || getString(metadata.image) || undefined;
 }
 
-function shortenAddress(address: `0x${string}`) {
-  return `${address.slice(0, 6)}...${address.slice(-4)}`;
-}
-
 function CreateCampaign() {
   const connection = useConnection();
-  const connect = useConnect();
-  const disconnect = useDisconnect();
   const connectors = useConnectors();
   const writeContract = useWriteContract();
   const publicClient = usePublicClient();
@@ -71,13 +63,25 @@ function CreateCampaign() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [image, setImage] = useState<File | null>(null);
-  const [metadataURI, setMetadataURI] = useState("");
   const [selectedCampaignAddress, setSelectedCampaignAddress] =
     useState<`0x${string}` | "">("");
+  const [status, setStatus] = useState<"inactive" | "uploadingMetadata" |
+    "waitingTransaction" | "success" | "error">("inactive");
   const timestamp = dayjs(time, "DD-MM-YYYY").unix();
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [isLoadingCampaignMetadata, setIsLoadingCampaignMetadata] = useState(false);
   const [campaignMetadataError, setCampaignMetadataError] = useState("");
+
+  const buttonText =
+  status === "inactive"
+    ? "Crear campaña"
+    : status === "uploadingMetadata"
+    ? "Subiendo metadatos..."
+    : status === "waitingTransaction"
+    ? "Esperando transacción..."
+    : status === "success"
+    ? "Campaña creada"
+    : "Error al crear campaña";
 
   const campaignsQuery = useReadContract({
     address: campaignFactoryContractAddress,
@@ -89,6 +93,10 @@ function CreateCampaign() {
   const campaignAddresses = useMemo(
     () => (campaignsQuery.data ?? []) as `0x${string}`[],
     [campaignsQuery.data],
+  );
+  const campaignTitleByAddress = useMemo(
+    () => new Map(campaigns.map((campaign) => [campaign.address, campaign.title])),
+    [campaigns],
   );
 
   const receipt = useWaitForTransactionReceipt({
@@ -149,7 +157,7 @@ function CreateCampaign() {
 
             return {
               address: campaignAddress,
-              title: `Campaña ${shortenAddress(campaignAddress)}`,
+              title: `Campaña ${campaignAddress}`,
               description: campaignMetadataURI
                 ? `No se pudieron cargar los metadatos desde ${campaignMetadataURI}`
                 : "No se pudo leer la URI de metadatos del contrato",
@@ -188,23 +196,8 @@ function CreateCampaign() {
 
   async function handleCreateCampaign() {
     try {
-      if (!metadataURI) {
-        console.error("Primero debes subir los metadatos");
-        return;
-      }
-      await writeContract.mutateAsync({
-        address: campaignFactoryContractAddress,
-        abi: campaignFactoryAbi,
-        functionName: "createCampaign",
-        args: [parseEther(eth), BigInt(timestamp), metadataURI],
-      });
-    } catch (err) {
-      console.error(err);
-    }
-  }
 
-  async function sendMetadataToBackend() {
-    try {
+      setStatus("uploadingMetadata");
 
       const formData = new FormData();
       formData.append("title", title);
@@ -221,10 +214,20 @@ function CreateCampaign() {
 
       const data = await response.json();
 
-      setMetadataURI(data.metadataURI);
+      setStatus("waitingTransaction")
+
+      await writeContract.mutateAsync({
+        address: campaignFactoryContractAddress,
+        abi: campaignFactoryAbi,
+        functionName: "createCampaign",
+        args: [parseEther(eth), BigInt(timestamp), data.metadataURI],
+      });
+
+      setStatus("success");
 
     } catch (err) {
       console.error(err);
+      setStatus("error");
     }
   }
 
@@ -273,28 +276,14 @@ function CreateCampaign() {
 
   return (
     <div className="app">
-      <h1 className="app-title">Proofund</h1>
-      <p>Conecta tu wallet y comienza a crear tus campañas</p>
-
       {connection.status !== "connected" ? (
-        <div className="panel wallet-connect">
+        <>
           {connectors.map((connector) => (
-            <button
-              className="button button--primary"
-              key={connector.uid}
-              onClick={() => connect.mutate({ connector })}
-            >
-              Conéctate con {connector.name}
-            </button>
-          ))}
-
-          {connect.isPending && <p className="status-message">Conectando...</p>}
-          {connect.error && (
-            <p className="status-message status-message--error">
-              Error: {connect.error.message}
+            <p className="status-message">
+              Conéctate con {connector.name} para poder crear tus campañas
             </p>
-          )}
-        </div>
+          ))}
+        </>
       ) : (
         <div className="app-content">
           <p>
@@ -306,13 +295,6 @@ function CreateCampaign() {
           <p>
             <strong>Testnet:</strong> {connection.chain?.name}
           </p>
-
-          <button
-            className="button button--secondary button--full-mobile"
-            onClick={() => disconnect.mutate()}
-          >
-            Desconectar
-          </button>
 
           <form
             className="panel campaign-form"
@@ -363,23 +345,15 @@ function CreateCampaign() {
 
               {image && <p className="selected-file">Imagen seleccionada: {image.name}</p>}
 
-              <button
-                className="button button--primary"
-                type="button"
-                onClick={() => sendMetadataToBackend()}
-              >
-                Subir metadatos
-              </button>
-
-
             </div>
           </form>
 
           <button
             className="button button--primary button--full-mobile"
             onClick={handleCreateCampaign}
+            disabled={status === "uploadingMetadata" || status === "waitingTransaction"}
           >
-            Crear campaña
+            {buttonText}
           </button>
 
           {campaignAddresses.length > 0 && (
@@ -395,7 +369,7 @@ function CreateCampaign() {
                 >
                   {campaignAddresses.map((campaignAddress) => (
                     <option key={campaignAddress} value={campaignAddress}>
-                      {campaignAddress}
+                      {campaignTitleByAddress.get(campaignAddress) ?? campaignAddress}
                     </option>
                   ))}
                 </select>
@@ -436,7 +410,6 @@ function CreateCampaign() {
               Error: {campaignsQuery.error.message}
             </p>
           )}
-          {writeContract.isPending && <p>Confirmando transacción...</p>}
           {writeContract.error && (
             <p className="status-message status-message--error">
               Error: {writeContract.error.message}
@@ -447,20 +420,6 @@ function CreateCampaign() {
               Tx hash: {writeContract.data}
             </p>
           )}
-
-          {campaigns.map((campaign) => (
-      <div className="panel campaign-card" key={campaign.address}>
-        <h3 className="campaign-card__title">{campaign.title}</h3>
-        <p className="campaign-card__description">{campaign.description}</p>
-        {campaign.image && (
-          <img
-            className="campaign-card__image"
-            src={ipfsToHttp(campaign.image)}
-            alt={campaign.title}
-          />
-        )}
-        </div>
-      ))}
 
         </div>
       )}
