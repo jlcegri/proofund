@@ -3,12 +3,14 @@ import {
     usePublicClient
 } from "wagmi";
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import { campaignAbi } from "../../contracts/abi/campaignAbi";
 import { campaignFactoryAbi } from "../../contracts/abi/campaignFactoryAbi";
 import { campaignFactoryContractAddress } from "../../contracts/address/campaignFactoryContractAddress";
+import { getLanguageFromPathname } from "../../i18n/language";
 import "./styles.css";
 
 dayjs.extend(customParseFormat);
@@ -48,10 +50,13 @@ function getMetadataImage(metadata: CampaignMetadata) {
 }
 
 function ExploreCampaigns() {
+    const { t } = useTranslation();
+    const location = useLocation();
     const publicClient = usePublicClient();
     const [campaigns, setCampaigns] = useState<Campaign[]>([]);
     const [isLoadingCampaignMetadata, setIsLoadingCampaignMetadata] = useState(false);
     const [campaignMetadataError, setCampaignMetadataError] = useState("");
+    const currentLanguage = getLanguageFromPathname(location.pathname);
 
 
     const campaignsQuery = useReadContract({
@@ -107,7 +112,9 @@ function ExploreCampaigns() {
 
                         return {
                             address: campaignAddress,
-                            title: `Campaña ${campaignAddress}`,
+                            title: t("exploreCampaigns.campaignFallback", {
+                                address: campaignAddress,
+                            }),
                             metadataURI: campaignMetadataURI
                         };
                     }
@@ -125,7 +132,7 @@ function ExploreCampaigns() {
             console.error(error);
 
             if (!ignore) {
-                setCampaignMetadataError("No se pudieron cargar los metadatos de las campañas");
+                setCampaignMetadataError(t("exploreCampaigns.metadataLoadError"));
                 setIsLoadingCampaignMetadata(false);
             }
         });
@@ -133,32 +140,45 @@ function ExploreCampaigns() {
         return () => {
             ignore = true;
         };
-    }, [publicClient, campaignsQuery.data]);
+    }, [publicClient, campaignsQuery.data, t]);
 
 
     return (
         <div className="app">
             <div className="app-content">
 
-                {campaignsQuery.isPending && <p>Cargando campañas...</p>}
-                {isLoadingCampaignMetadata && <p className="status-message">Cargando metadatos...</p>}
+                {campaignsQuery.isPending && <p>{t("exploreCampaigns.loading")}</p>}
+                {isLoadingCampaignMetadata && (
+                    <p className="status-message">
+                        {t("exploreCampaigns.loadingMetadata")}
+                    </p>
+                )}
                 {campaignMetadataError && (
                     <p className="status-message status-message--error">
-                        Error: {campaignMetadataError}
+                        {t("common.errorWithMessage", {
+                            message: campaignMetadataError,
+                        })}
                     </p>
                 )}
                 {campaignsQuery.error && (
                     <p className="status-message status-message--error">
-                        Error: {campaignsQuery.error.message}
+                        {t("common.errorWithMessage", {
+                            message: campaignsQuery.error.message,
+                        })}
                     </p>
                 )}
+                {!campaignsQuery.isPending &&
+                    !isLoadingCampaignMetadata &&
+                    campaigns.length === 0 && (
+                        <p>{t("exploreCampaigns.empty")}</p>
+                    )}
 
                 <div className="campaign-grid">
                     {campaigns.map((campaign) => (
                         <Link
                             className="panel campaign-card"
                             key={campaign.address}
-                            to={`/campaign/${campaign.address}`}
+                            to={`/${currentLanguage}/campaign/${campaign.address}`}
                         >
                             {campaign.image && (
                                 <img

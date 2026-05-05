@@ -4,6 +4,7 @@ import { WagmiProvider } from "wagmi";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter } from "react-router-dom";
 
+import "./i18n/i18n";
 import "./index.css";
 import App from "./App";
 import { config } from "./wagmi";

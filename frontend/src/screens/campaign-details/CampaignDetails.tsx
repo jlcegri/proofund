@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { formatEther, isAddress, parseEther } from "viem";
 import {
   useConnection,
@@ -57,23 +58,24 @@ function formatPercent(value: number) {
   return `${Number.isInteger(value) ? value.toFixed(0) : value.toFixed(1)}%`;
 }
 
-function getStatusLabel(status?: number) {
-  if (status === 0) return "Activa";
-  if (status === 1) return "Completada";
-  if (status === 2) return "Fallida";
-  if (status === 3) return "Cancelada";
+function getStatusLabelKey(status?: number) {
+  if (status === 0) return "campaignDetails.statuses.active";
+  if (status === 1) return "campaignDetails.statuses.completed";
+  if (status === 2) return "campaignDetails.statuses.failed";
+  if (status === 3) return "campaignDetails.statuses.cancelled";
 
-  return "Desconocido";
+  return "campaignDetails.statuses.unknown";
 }
 
 function formatDeadline(deadline?: bigint) {
-  if (!deadline) return "Sin fecha";
+  if (!deadline) return "";
 
   return dayjs.unix(Number(deadline)).format("DD-MM-YYYY");
 }
 
 function CampaignDetails() {
-  const { address } = useParams();
+  const { t } = useTranslation();
+  const { campaignAddress: campaignAddressParam } = useParams();
   const connection = useConnection();
   const writeContract = useWriteContract();
   const [donationEth, setDonationEth] = useState("");
@@ -86,8 +88,8 @@ function CampaignDetails() {
   const [metadataError, setMetadataError] = useState("");
   const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
 
-  const campaignAddress = address && isAddress(address)
-    ? address as `0x${string}`
+  const campaignAddress = campaignAddressParam && isAddress(campaignAddressParam)
+    ? campaignAddressParam as `0x${string}`
     : undefined;
   const hasCampaignAddress = Boolean(campaignAddress);
 
@@ -163,8 +165,12 @@ function CampaignDetails() {
   const title =
     getString(metadata?.title) ||
     getString(metadata?.name) ||
-    (campaignAddress ? `Campaña ${campaignAddress}` : "Campaña");
-  const description = getString(metadata?.description) || "Sin descripción.";
+    (campaignAddress
+      ? t("campaignDetails.campaignFallback", {
+          address: campaignAddress,
+        })
+      : t("campaignDetails.campaignFallbackGeneric"));
+  const description = getString(metadata?.description) || t("campaignDetails.noDescription");
   const isOwner = Boolean(
     owner &&
     connection.address &&
@@ -192,12 +198,12 @@ function CampaignDetails() {
   const progressBarPercent = Math.min(progressPercent, 100);
   const donationButtonText =
     donationStatus === "waitingTransaction"
-      ? "Esperando transacción..."
+      ? t("campaignDetails.waitingTransaction")
       : donationStatus === "success"
-      ? "Donación realizada"
+      ? t("campaignDetails.donationDone")
       : donationStatus === "error"
-      ? "Error al donar"
-      : "Donar";
+      ? t("campaignDetails.donationError")
+      : t("campaignDetails.donate");
   const isTransactionBusy =
     donationStatus === "waitingTransaction" ||
     ownerActionStatus === "waitingTransaction" ||
@@ -236,11 +242,11 @@ function CampaignDetails() {
           setIsLoadingMetadata(false);
         }
       } catch (error) {
-        console.error("Error cargando metadatos", campaignAddress, error);
+        console.error("Error loading metadata", campaignAddress, error);
 
         if (!ignore) {
           setMetadata(null);
-          setMetadataError("No se pudieron cargar los metadatos de la campaña");
+          setMetadataError(t("campaignDetails.metadataLoadError"));
           setIsLoadingMetadata(false);
         }
       }
@@ -251,7 +257,7 @@ function CampaignDetails() {
     return () => {
       ignore = true;
     };
-  }, [campaignAddress, metadataURI]);
+  }, [campaignAddress, metadataURI, t]);
 
   useEffect(() => {
     if (!receipt.isSuccess || !pendingAction) return;
@@ -339,7 +345,7 @@ function CampaignDetails() {
     return (
       <div className="app">
         <p className="status-message status-message--error">
-          Dirección de campaña no válida.
+          {t("campaignDetails.invalidAddress")}
         </p>
       </div>
     );
@@ -349,18 +355,22 @@ function CampaignDetails() {
     <div className="app">
       <div className="app-content">
         {(isLoadingContract || isLoadingMetadata) && (
-          <p>Cargando campaña...</p>
+          <p>{t("campaignDetails.loading")}</p>
         )}
 
         {contractError && (
           <p className="status-message status-message--error">
-            Error: {contractError.message}
+            {t("common.errorWithMessage", {
+              message: contractError.message,
+            })}
           </p>
         )}
 
         {metadataError && (
           <p className="status-message status-message--error">
-            Error: {metadataError}
+            {t("common.errorWithMessage", {
+              message: metadataError,
+            })}
           </p>
         )}
 
@@ -374,7 +384,7 @@ function CampaignDetails() {
               />
             ) : (
               <div className="campaign-detail__image-placeholder">
-                Sin imagen
+                {t("campaignDetails.noImage")}
               </div>
             )}
           </div>
@@ -382,7 +392,7 @@ function CampaignDetails() {
           <div className="campaign-detail__content">
             <div>
               <p className="campaign-detail__status">
-                {getStatusLabel(status)}
+                {t(getStatusLabelKey(status))}
               </p>
               <h1 className="campaign-detail__title">{title}</h1>
               <p className="campaign-detail__description">{description}</p>
@@ -390,7 +400,7 @@ function CampaignDetails() {
 
             <div className="campaign-progress">
               <div className="campaign-progress__header">
-                <strong>Progreso</strong>
+                <strong>{t("campaignDetails.progress")}</strong>
                 <span>{formatPercent(progressPercent)}</span>
               </div>
               <div className="campaign-progress__track">
@@ -400,22 +410,28 @@ function CampaignDetails() {
                 />
               </div>
               <p className="campaign-progress__amount">
-                {formatEthAmount(totalRaised)} ETH recaudados de{" "}
-                {formatEthAmount(goalAmount)} ETH
+                {t("campaignDetails.raisedOfGoal", {
+                  raised: formatEthAmount(totalRaised),
+                  goal: formatEthAmount(goalAmount),
+                })}
               </p>
             </div>
 
             <dl className="campaign-detail__stats">
               <div>
-                <dt>Fecha límite</dt>
-                <dd>{formatDeadline(deadline)}</dd>
+                <dt>{t("campaignDetails.deadline")}</dt>
+                <dd>
+                  {formatDeadline(deadline) || t("campaignDetails.noDeadline")}
+                </dd>
               </div>
               <div>
-                <dt>Titular</dt>
-                <dd className="campaign-detail__mono">{owner ?? "No disponible"}</dd>
+                <dt>{t("campaignDetails.owner")}</dt>
+                <dd className="campaign-detail__mono">
+                  {owner ?? t("campaignDetails.notAvailable")}
+                </dd>
               </div>
               <div>
-                <dt>Contrato</dt>
+                <dt>{t("campaignDetails.contract")}</dt>
                 <dd className="campaign-detail__mono">{campaignAddress}</dd>
               </div>
             </dl>
@@ -428,7 +444,7 @@ function CampaignDetails() {
               }}
             >
               <label className="field-label" htmlFor="donation-eth">
-                Donación en ETH
+                {t("campaignDetails.donationAmount")}
               </label>
               <div className="campaign-donation__actions">
                 <input
@@ -454,32 +470,34 @@ function CampaignDetails() {
               </div>
               {connection.status !== "connected" && (
                 <p className="campaign-detail__hint">
-                  Conecta tu wallet para poder donar.
+                  {t("campaignDetails.connectWalletToDonate")}
                 </p>
               )}
               {connection.status === "connected" && !isActive && (
                 <p className="campaign-detail__hint">
-                  Esta campaña no acepta más donaciones.
+                  {t("campaignDetails.inactiveCampaignHint")}
                 </p>
               )}
             </form>
 
             {writeContract.error && (
               <p className="status-message status-message--error">
-                Error: {writeContract.error.message}
+                {t("common.errorWithMessage", {
+                  message: writeContract.error.message,
+                })}
               </p>
             )}
 
             {donationStatus === "success" && (
               <p className="status-message status-message--success">
-                Donación realizada correctamente.
+                {t("campaignDetails.donationSuccess")}
               </p>
             )}
 
             {isOwner && (
               <div className="campaign-owner-actions">
                 <h2 className="campaign-owner-actions__title">
-                  Opciones del titular
+                  {t("campaignDetails.ownerOptions")}
                 </h2>
                 <div className="campaign-actions">
                   <button
@@ -488,7 +506,7 @@ function CampaignDetails() {
                     onClick={handleWithdraw}
                     type="button"
                   >
-                    Retirar fondos
+                    {t("campaignDetails.withdraw")}
                   </button>
                   <button
                     className="button"
@@ -496,22 +514,22 @@ function CampaignDetails() {
                     onClick={handleFinishCampaign}
                     type="button"
                   >
-                    Finalizar campaña
+                    {t("campaignDetails.finishCampaign")}
                   </button>
                 </div>
                 {ownerActionStatus === "waitingTransaction" && (
                   <p className="status-message">
-                    Esperando transacción...
+                    {t("campaignDetails.waitingTransaction")}
                   </p>
                 )}
                 {ownerActionStatus === "success" && (
                   <p className="status-message status-message--success">
-                    Acción realizada correctamente.
+                    {t("campaignDetails.actionSuccess")}
                   </p>
                 )}
                 {ownerActionStatus === "error" && (
                   <p className="status-message status-message--error">
-                    Error al ejecutar la acción.
+                    {t("campaignDetails.actionError")}
                   </p>
                 )}
               </div>

@@ -1,56 +1,57 @@
-import { useNavigate } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
+import { getLanguageFromPathname } from "../../i18n/language";
 import "./styles.css";
 
 function Home() {
-
+  const { t } = useTranslation();
+  const location = useLocation();
   const navigate = useNavigate();
+  const currentLanguage = getLanguageFromPathname(location.pathname);
 
   return (
     <main className="home">
       <section className="home-hero">
         <div className="home-hero-content">
-          <span className="home-badge">Decentralized crowdfunding</span>
+          <span className="home-badge">{t("home.badge")}</span>
 
-          <h1>Welcome to Proofund!</h1>
+          <h1>{t("home.title")}</h1>
 
-          <p>
-            Proofund allows users to create and support crowdfunding campaigns
-            using smart contracts and decentralized metadata storage through IPFS.
-          </p>
+          <p>{t("home.subtitle")}</p>
 
           <div className="home-actions">
             <button
               className="home-primary-button"
-              onClick={() => navigate("/campaigns/create")}
+              onClick={() => navigate(`/${currentLanguage}/campaign/create`)}
             >
-              Create campaign
+              {t("home.createCampaign")}
             </button>
 
             <button
               className="home-secondary-button"
-              onClick={() => navigate("/campaigns/explore")}
+              onClick={() => navigate(`/${currentLanguage}/explore`)}
             >
-              Explore campaigns
+              {t("home.exploreCampaigns")}
             </button>
           </div>
         </div>
 
         <div className="home-hero-card">
-          <h2>How it works</h2>
+          <h2>{t("home.howItWorks")}</h2>
 
           <div className="home-step">
-            <strong>1. Create</strong>
-            <span>Upload campaign metadata and define the funding goal.</span>
+            <strong>{t("home.steps.createTitle")}</strong>
+            <span>{t("home.steps.createDescription")}</span>
           </div>
 
           <div className="home-step">
-            <strong>2. Fund</strong>
-            <span>Users contribute directly through the smart contract.</span>
+            <strong>{t("home.steps.fundTitle")}</strong>
+            <span>{t("home.steps.fundDescription")}</span>
           </div>
 
           <div className="home-step">
-            <strong>3. Settle</strong>
-            <span>Funds are withdrawn or refunded depending on the result.</span>
+            <strong>{t("home.steps.settleTitle")}</strong>
+            <span>{t("home.steps.settleDescription")}</span>
           </div>
         </div>
       </section>
