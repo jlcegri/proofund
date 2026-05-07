@@ -5,12 +5,14 @@ import {
 import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useTranslation } from "react-i18next";
+import { formatEther } from "viem";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import { campaignAbi } from "../../contracts/abi/campaignAbi";
 import { campaignFactoryAbi } from "../../contracts/abi/campaignFactoryAbi";
 import { campaignFactoryContractAddress } from "../../contracts/address/campaignFactoryContractAddress";
 import { getLanguageFromPathname } from "../../i18n/language";
+import "../campaign-details/styles.css";
 import "./styles.css";
 
 dayjs.extend(customParseFormat);
@@ -20,6 +22,8 @@ type Campaign = {
     title: string;
     image?: string;
     metadataURI?: string;
+    goalAmount: bigint;
+    totalRaised: bigint;
 };
 
 type CampaignMetadata = {
@@ -47,6 +51,17 @@ function getMetadataImage(metadata: CampaignMetadata) {
     }
 
     return getString(metadata.images) || getString(metadata.image) || undefined;
+}
+
+function formatEthAmount(value?: bigint) {
+    const formatted = formatEther(value ?? 0n);
+    const [whole, fraction] = formatted.split(".");
+
+    if (!fraction) return formatted;
+
+    const trimmedFraction = fraction.slice(0, 4).replace(/0+$/, "");
+
+    return trimmedFraction ? `${whole}.${trimmedFraction}` : whole;
 }
 
 function ExploreCampaigns() {
@@ -85,6 +100,8 @@ function ExploreCampaigns() {
             const loadedCampaigns = await Promise.all(
                 campaignsAddresses.map(async (campaignAddress) => {
                     let campaignMetadataURI = "";
+                    let goalAmount = 0n;
+                    let totalRaised = 0n;
 
                     try {
                         campaignMetadataURI = await publicClient.readContract({
@@ -92,6 +109,22 @@ function ExploreCampaigns() {
                             abi: campaignAbi,
                             functionName: "metadataURI"
                         }) as string;
+
+                        const [campaignGoalAmount, campaignTotalRaised] = await Promise.all([
+                            publicClient.readContract({
+                                address: campaignAddress,
+                                abi: campaignAbi,
+                                functionName: "goalAmount"
+                            }),
+                            publicClient.readContract({
+                                address: campaignAddress,
+                                abi: campaignAbi,
+                                functionName: "totalRaised"
+                            })
+                        ]);
+
+                        goalAmount = campaignGoalAmount as bigint;
+                        totalRaised = campaignTotalRaised as bigint;
 
                         const response = await fetch(ipfsToHttp(campaignMetadataURI));
 
@@ -105,7 +138,9 @@ function ExploreCampaigns() {
                             address: campaignAddress,
                             title: getString(metadata.title),
                             image: getMetadataImage(metadata),
-                            metadataURI: campaignMetadataURI
+                            metadataURI: campaignMetadataURI,
+                            goalAmount,
+                            totalRaised
                         };
                     } catch (error) {
                         console.error("Error cargando metadatos", campaignAddress, error);
@@ -115,7 +150,9 @@ function ExploreCampaigns() {
                             title: t("exploreCampaigns.campaignFallback", {
                                 address: campaignAddress,
                             }),
-                            metadataURI: campaignMetadataURI
+                            metadataURI: campaignMetadataURI,
+                            goalAmount,
+                            totalRaised
                         };
                     }
                 })
@@ -174,22 +211,40 @@ function ExploreCampaigns() {
                     )}
 
                 <div className="campaign-grid">
-                    {campaigns.map((campaign) => (
-                        <Link
-                            className="panel campaign-card"
-                            key={campaign.address}
-                            to={`/${currentLanguage}/campaign/${campaign.address}`}
-                        >
-                            {campaign.image && (
-                                <img
-                                    className="campaign-card__image"
-                                    src={ipfsToHttp(campaign.image)}
-                                    alt={campaign.title}
-                                />
-                            )}
-                            <h3 className="campaign-card__title">{campaign.title}</h3>
-                        </Link>
-                    ))}
+                    {campaigns.map((campaign) => {
+                        const progressPercent = campaign.goalAmount === 0n
+                            ? 0
+                            : Number((campaign.totalRaised * 10000n) / campaign.goalAmount) / 100;
+                        const progressBarPercent = Math.min(progressPercent, 100);
+
+                        return (
+                            <Link
+                                className="panel campaign-card"
+                                key={campaign.address}
+                                to={`/${currentLanguage}/campaign/${campaign.address}`}
+                            >
+                                {campaign.image && (
+                                    <img
+                                        className="campaign-card__image"
+                                        src={ipfsToHttp(campaign.image)}
+                                        alt={campaign.title}
+                                    />
+                                )}
+                                <h3 className="campaign-card__title">{campaign.title}</h3>
+                                <div className="campaign-progress">
+                                    <div className="campaign-progress__track">
+                                        <div
+                                            className="campaign-progress__bar"
+                                            style={{ width: `${progressBarPercent}%` }}
+                                        />
+                                    </div>
+                                    <p className="campaign-progress__amount">
+                                        {formatEthAmount(campaign.totalRaised)} {t("exploreCampaigns.ethRaised")}
+                                    </p>
+                                </div>
+                            </Link>
+                        );
+                    })}
                 </div>
             </div>
         </div>
