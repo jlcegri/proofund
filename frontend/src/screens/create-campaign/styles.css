@@ -16,19 +16,6 @@
   box-shadow: var(--shadow);
 }
 
-.app-content > p {
-  margin: 0;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-soft);
-  overflow-wrap: anywhere;
-}
-
-.app-content > p strong {
-  color: var(--heading);
-}
-
 .campaign-form {
   padding: 20px;
 }

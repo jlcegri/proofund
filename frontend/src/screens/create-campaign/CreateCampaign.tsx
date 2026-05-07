@@ -89,18 +89,6 @@ function CreateCampaign() {
         </>
       ) : (
         <div className="app-content">
-          <p>
-            <strong>{t("createCampaign.connected")}:</strong>{" "}
-            {t("createCampaign.yes")}
-          </p>
-          <p>
-            <strong>{t("createCampaign.address")}:</strong> {connection.address}
-          </p>
-          <p>
-            <strong>{t("createCampaign.testnet")}:</strong>{" "}
-            {connection.chain?.name}
-          </p>
-
           <form
             className="panel campaign-form"
             onSubmit={(e) => {

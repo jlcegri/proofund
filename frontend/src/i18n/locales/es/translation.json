@@ -7,6 +7,12 @@
     "disconnect": "Desconectar",
     "connectWallet": "Conectar wallet",
     "connecting": "Conectando...",
+    "walletModalTitle": "Conectar cartera",
+    "closeWalletModal": "Cerrar selector de cartera",
+    "wallets": {
+      "metaMask": "MetaMask",
+      "coinbase": "Coinbase Wallet"
+    },
     "language": "Idioma",
     "currentLanguage": "Idioma: {{language}}",
     "navigation": "Navegación principal"
@@ -30,10 +36,6 @@
   "createCampaign": {
     "title": "Crear campaña",
     "connectWalletPrompt": "Conéctate con {{connectorName}} para poder crear tus campañas",
-    "connected": "Conectado",
-    "yes": "Sí",
-    "address": "Dirección",
-    "testnet": "Testnet",
     "ethLabel": "ETH",
     "deadlineLabel": "Fecha de finalización",
     "campaignTitleLabel": "Nombre",
@@ -59,6 +61,14 @@
     "metadataFetchError": "No se pudieron cargar los metadatos desde {{metadataURI}}",
     "metadataUriReadError": "No se pudo leer la URI de metadatos del contrato"
   },
+  "profile": {
+    "title": "Mi perfil",
+    "connected": "Conectado",
+    "yes": "Sí",
+    "address": "Dirección",
+    "testnet": "Testnet",
+    "wallet": "Cartera"
+  },
   "exploreCampaigns": {
     "title": "Explorar campañas",
     "empty": "No hay campañas disponibles.",
@@ -66,7 +76,8 @@
     "loadingMetadata": "Cargando metadatos...",
     "metadataLoadError": "No se pudieron cargar los metadatos de las campañas",
     "campaignFallback": "Campaña {{address}}",
-    "viewDetails": "Ver detalles"
+    "viewDetails": "Ver detalles",
+    "ethRaised": "ETH recaudados"
   },
   "campaignDetails": {
     "loading": "Cargando campaña...",

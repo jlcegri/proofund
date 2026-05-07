@@ -2,6 +2,19 @@
   padding: 20px;
 }
 
+.app-content > p {
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-soft);
+  overflow-wrap: anywhere;
+}
+
+.app-content > p strong {
+  color: var(--heading);
+}
+
 .profile-panel h1 {
   margin: 0;
   color: var(--heading);

@@ -7,6 +7,12 @@
     "disconnect": "Disconnect",
     "connectWallet": "Connect wallet",
     "connecting": "Connecting...",
+    "walletModalTitle": "Connect wallet",
+    "closeWalletModal": "Close wallet selector",
+    "wallets": {
+      "metaMask": "MetaMask",
+      "coinbase": "Coinbase Wallet"
+    },
     "language": "Language",
     "currentLanguage": "Language: {{language}}",
     "navigation": "Main navigation"
@@ -30,10 +36,6 @@
   "createCampaign": {
     "title": "Create campaign",
     "connectWalletPrompt": "Connect with {{connectorName}} to create your campaigns",
-    "connected": "Connected",
-    "yes": "Yes",
-    "address": "Address",
-    "testnet": "Testnet",
     "ethLabel": "ETH",
     "deadlineLabel": "End date",
     "campaignTitleLabel": "Name",
@@ -59,6 +61,14 @@
     "metadataFetchError": "Could not load metadata from {{metadataURI}}",
     "metadataUriReadError": "Could not read the metadata URI from the contract"
   },
+  "profile": {
+    "title": "My profile",
+    "connected": "Connected",
+    "yes": "Yes",
+    "address": "Address",
+    "testnet": "Testnet",
+    "wallet": "Wallet"
+  },
   "exploreCampaigns": {
     "title": "Explore campaigns",
     "empty": "There are no campaigns available.",
@@ -66,7 +76,8 @@
     "loadingMetadata": "Loading metadata...",
     "metadataLoadError": "Could not load campaign metadata",
     "campaignFallback": "Campaign {{address}}",
-    "viewDetails": "View details"
+    "viewDetails": "View details",
+    "ethRaised": "ETH raised"
   },
   "campaignDetails": {
     "loading": "Loading campaign...",

@@ -1,10 +1,15 @@
 import { createConfig, http } from "wagmi";
 import { sepolia } from "wagmi/chains";
-import { metaMask } from "wagmi/connectors";
+import { coinbaseWallet, metaMask } from "wagmi/connectors";
 
 export const config = createConfig({
   chains: [sepolia],
-  connectors: [metaMask()],
+  connectors: [
+    metaMask(),
+    coinbaseWallet({
+      appName: "Proofund",
+    }),
+  ],
   transports: {
     [sepolia.id]: http(),
   },
