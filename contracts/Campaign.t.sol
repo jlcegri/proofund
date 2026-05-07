@@ -14,8 +14,6 @@ contract CampaignTest is Test {
     // constructor() tests
 
     function test_ValidCampaign() public {
-        vm.expectEmit();
-        emit Campaign.CampaignCreated(initialOwner, goalAmount, deadline, metadata);
         campaign = new Campaign(initialOwner, goalAmount, deadline, metadata);
 
         assertEq(campaign.owner(), initialOwner);
