@@ -9,7 +9,7 @@ export function handleCampaignCreated(event: CampaignCreatedEvent): void {
   entity.campaign = event.params.campaign
   entity.goalAmount = event.params.goalAmount
   entity.deadline = event.params.deadline
-  entity.metadata = event.params.metadata
+  entity.metadataURI = event.params.metadataURI
 
   entity.blockNumber = event.block.number
   entity.blockTimestamp = event.block.timestamp

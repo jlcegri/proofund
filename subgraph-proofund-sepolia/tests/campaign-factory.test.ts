@@ -23,13 +23,13 @@ describe("Describe entity assertions", () => {
     )
     let goalAmount = BigInt.fromI32(234)
     let deadline = BigInt.fromI32(234)
-    let metadata = "Example string value"
+    let metadataURI = "Example string value"
     let newCampaignCreatedEvent = createCampaignCreatedEvent(
       owner,
       campaign,
       goalAmount,
       deadline,
-      metadata
+      metadataURI
     )
     handleCampaignCreated(newCampaignCreatedEvent)
   })
@@ -72,7 +72,7 @@ describe("Describe entity assertions", () => {
     assert.fieldEquals(
       "CampaignCreated",
       "0xa16081f360e3847006db660bae1c6d1b2e17ec2a-1",
-      "metadata",
+      "metadataURI",
       "Example string value"
     )
 

@@ -7,7 +7,7 @@ export function createCampaignCreatedEvent(
   campaign: Address,
   goalAmount: BigInt,
   deadline: BigInt,
-  metadata: string
+  metadataURI: string
 ): CampaignCreated {
   let campaignCreatedEvent = changetype<CampaignCreated>(newMockEvent())
 
@@ -32,7 +32,10 @@ export function createCampaignCreatedEvent(
     )
   )
   campaignCreatedEvent.parameters.push(
-    new ethereum.EventParam("metadata", ethereum.Value.fromString(metadata))
+    new ethereum.EventParam(
+      "metadataURI",
+      ethereum.Value.fromString(metadataURI)
+    )
   )
 
   return campaignCreatedEvent

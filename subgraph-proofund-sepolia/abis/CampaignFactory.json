@@ -28,7 +28,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "metadata",
+        "name": "metadataURI",
         "type": "string",
         "indexed": false,
         "internalType": "string"
@@ -59,7 +59,7 @@
     "inputs": [
       { "name": "goalAmount", "type": "uint256", "internalType": "uint256" },
       { "name": "deadline", "type": "uint256", "internalType": "uint256" },
-      { "name": "metadata", "type": "string", "internalType": "string" }
+      { "name": "metadataURI", "type": "string", "internalType": "string" }
     ],
     "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
     "stateMutability": "nonpayable"
