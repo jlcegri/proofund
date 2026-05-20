@@ -24,3 +24,32 @@ dataSources:
         - event: CampaignCreated(indexed address,indexed address,uint256,uint256,string)
           handler: handleCampaignCreated
       file: ./src/campaign-factory.ts
+
+templates:
+  - kind: ethereum/contract
+    name: Campaign
+    network: sepolia
+    source:
+      abi: Campaign
+    mapping:
+      kind: ethereum/events
+      apiVersion: 0.0.9
+      language: wasm/assemblyscript
+      entities:
+        - Campaign
+        - Contribution
+        - Refund
+        - Withdrawal
+      abis:
+        - name: Campaign
+          file: ./abis/Campaign.json
+      eventHandlers:
+        - event: Funded(indexed address,uint256)
+          handler: handleFunded
+        - event: Withdrawn(indexed address,uint256)
+          handler: handleWithdrawn
+        - event: Refunded(indexed address,uint256)
+          handler: handleRefunded
+        - event: CampaignFinished(uint8)
+          handler: handleCampaignFinished
+      file: ./src/campaign.ts

@@ -32,3 +32,6 @@ typechain-types
 
 # Hardhat files
 cache
+
+# Local Graph Node data
+data/
