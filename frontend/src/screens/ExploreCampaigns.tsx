@@ -8,12 +8,10 @@ import { useTranslation } from "react-i18next";
 import { formatEther } from "viem";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
-import { campaignAbi } from "../../contracts/abi/campaignAbi";
-import { campaignFactoryAbi } from "../../contracts/abi/campaignFactoryAbi";
-import { campaignFactoryContractAddress } from "../../contracts/address/campaignFactoryContractAddress";
-import { getLanguageFromPathname } from "../../i18n/language";
-import "../campaign-details/styles.css";
-import "./styles.css";
+import { campaignAbi } from "../contracts/abi/campaignAbi";
+import { campaignFactoryAbi } from "../contracts/abi/campaignFactoryAbi";
+import { campaignFactoryContractAddress } from "../contracts/address/campaignFactoryContractAddress";
+import { getLanguageFromPathname } from "../i18n/language";
 
 dayjs.extend(customParseFormat);
 
@@ -181,71 +179,73 @@ function ExploreCampaigns() {
 
 
     return (
-        <div className="app">
-            <div className="app-content">
-
-                {campaignsQuery.isPending && <p>{t("exploreCampaigns.loading")}</p>}
-                {isLoadingCampaignMetadata && (
-                    <p className="status-message">
-                        {t("exploreCampaigns.loadingMetadata")}
-                    </p>
+        <div className="space-y-6">
+            {campaignsQuery.isPending && (
+                <p className="alert alert-info">{t("exploreCampaigns.loading")}</p>
+            )}
+            {isLoadingCampaignMetadata && (
+                <p className="alert alert-info">
+                    {t("exploreCampaigns.loadingMetadata")}
+                </p>
+            )}
+            {campaignMetadataError && (
+                <p className="alert alert-error">
+                    {t("common.errorWithMessage", {
+                        message: campaignMetadataError,
+                    })}
+                </p>
+            )}
+            {campaignsQuery.error && (
+                <p className="alert alert-error">
+                    {t("common.errorWithMessage", {
+                        message: campaignsQuery.error.message,
+                    })}
+                </p>
+            )}
+            {!campaignsQuery.isPending &&
+                !isLoadingCampaignMetadata &&
+                campaigns.length === 0 && (
+                    <p className="alert alert-info">{t("exploreCampaigns.empty")}</p>
                 )}
-                {campaignMetadataError && (
-                    <p className="status-message status-message--error">
-                        {t("common.errorWithMessage", {
-                            message: campaignMetadataError,
-                        })}
-                    </p>
-                )}
-                {campaignsQuery.error && (
-                    <p className="status-message status-message--error">
-                        {t("common.errorWithMessage", {
-                            message: campaignsQuery.error.message,
-                        })}
-                    </p>
-                )}
-                {!campaignsQuery.isPending &&
-                    !isLoadingCampaignMetadata &&
-                    campaigns.length === 0 && (
-                        <p>{t("exploreCampaigns.empty")}</p>
-                    )}
 
-                <div className="campaign-grid">
-                    {campaigns.map((campaign) => {
-                        const progressPercent = campaign.goalAmount === 0n
-                            ? 0
-                            : Number((campaign.totalRaised * 10000n) / campaign.goalAmount) / 100;
-                        const progressBarPercent = Math.min(progressPercent, 100);
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {campaigns.map((campaign) => {
+                    const progressPercent = campaign.goalAmount === 0n
+                        ? 0
+                        : Number((campaign.totalRaised * 10000n) / campaign.goalAmount) / 100;
+                    const progressBarPercent = Math.min(progressPercent, 100);
 
-                        return (
-                            <Link
-                                className="panel campaign-card"
-                                key={campaign.address}
-                                to={`/${currentLanguage}/campaign/${campaign.address}`}
-                            >
-                                {campaign.image && (
+                    return (
+                        <Link
+                            className="card bg-base-100 shadow-xl transition-shadow hover:shadow-2xl"
+                            key={campaign.address}
+                            to={`/${currentLanguage}/campaign/${campaign.address}`}
+                        >
+                            {campaign.image && (
+                                <figure className="h-48 bg-base-200">
                                     <img
-                                        className="campaign-card__image"
+                                        className="h-full w-full object-cover"
                                         src={ipfsToHttp(campaign.image)}
                                         alt={campaign.title}
                                     />
-                                )}
-                                <h3 className="campaign-card__title">{campaign.title}</h3>
-                                <div className="campaign-progress">
-                                    <div className="campaign-progress__track">
-                                        <div
-                                            className="campaign-progress__bar"
-                                            style={{ width: `${progressBarPercent}%` }}
-                                        />
-                                    </div>
-                                    <p className="campaign-progress__amount">
+                                </figure>
+                            )}
+                            <div className="card-body">
+                                <h3 className="card-title">{campaign.title}</h3>
+                                <div className="space-y-2">
+                                    <progress
+                                        className="progress progress-primary w-full"
+                                        value={progressBarPercent}
+                                        max={100}
+                                    />
+                                    <p className="text-sm text-base-content/70">
                                         {formatEthAmount(campaign.totalRaised)} {t("exploreCampaigns.ethRaised")}
                                     </p>
                                 </div>
-                            </Link>
-                        );
-                    })}
-                </div>
+                            </div>
+                        </Link>
+                    );
+                })}
             </div>
         </div>
     );

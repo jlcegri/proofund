@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { formatEther, isAddress, parseEther } from "viem";
+import { gql, request } from 'graphql-request';
 import {
   useConnection,
   useReadContract,
@@ -9,8 +10,7 @@ import {
   useWriteContract
 } from "wagmi";
 import dayjs from "dayjs";
-import { campaignAbi } from "../../contracts/abi/campaignAbi";
-import "./styles.css";
+import { campaignAbi } from "../contracts/abi/campaignAbi";
 
 type CampaignMetadata = {
   title?: unknown;
@@ -22,6 +22,42 @@ type CampaignMetadata = {
 
 type TransactionStatus = "inactive" | "waitingTransaction" | "success" | "error";
 type PendingAction = "donate" | "withdraw" | "finish" | null;
+
+const query = gql`
+  query CampaignContributions($campaign: Bytes!) {
+    contributions(
+      first: 10
+      orderBy: timestamp
+      orderDirection: desc
+      where: { campaign: $campaign }
+    ) {
+      user
+      amount
+      timestamp
+      transactionHash
+    }
+  }
+`;
+
+const url = import.meta.env.VITE_API_URL;
+const token = import.meta.env.VITE_TOKEN;
+const headers = { Authorization: `Bearer ${token}` };
+
+type ContributionHistoryItem = {
+  user: string;
+  amount: bigint;
+  timestamp: number;
+  transactionHash: string;
+};
+
+type ContributionHistoryResponse = {
+  contributions: Array<{
+    user: string;
+    amount: string;
+    timestamp: string;
+    transactionHash: string;
+  }>;
+};
 
 function ipfsToHttp(uri: string) {
   if (uri.startsWith("ipfs://")) {
@@ -73,6 +109,41 @@ function formatDeadline(deadline?: bigint) {
   return dayjs.unix(Number(deadline)).format("DD-MM-YYYY");
 }
 
+function parseSubgraphBigInt(value: string) {
+  try {
+    return BigInt(value);
+  } catch {
+    return 0n;
+  }
+}
+
+function truncateHex(value: string) {
+  if (value.length <= 12) return value;
+
+  return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+function formatContributionDate(timestamp: number) {
+  if (!timestamp) return "";
+
+  return dayjs.unix(timestamp).format("DD-MM-YYYY HH:mm");
+}
+
+async function fetchSubgraphData(campaign: string) {
+  const variables = {
+    campaign: campaign.toLowerCase(),
+  };
+
+  const data = (await request(url, query, variables, headers)) as ContributionHistoryResponse;
+
+  return data.contributions.map((contribution) => ({
+    user: contribution.user,
+    amount: parseSubgraphBigInt(contribution.amount),
+    timestamp: Number(contribution.timestamp),
+    transactionHash: contribution.transactionHash,
+  }));
+}
+
 function CampaignDetails() {
   const { t } = useTranslation();
   const { campaignAddress: campaignAddressParam } = useParams();
@@ -87,6 +158,10 @@ function CampaignDetails() {
   const [metadata, setMetadata] = useState<CampaignMetadata | null>(null);
   const [metadataError, setMetadataError] = useState("");
   const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
+  const [contributions, setContributions] = useState<ContributionHistoryItem[]>([]);
+  const [isLoadingContributions, setIsLoadingContributions] = useState(false);
+  const [contributionHistoryError, setContributionHistoryError] = useState("");
+  const [contributionHistoryVersion, setContributionHistoryVersion] = useState(0);
 
   const campaignAddress = campaignAddressParam && isAddress(campaignAddressParam)
     ? campaignAddressParam as `0x${string}`
@@ -213,6 +288,16 @@ function CampaignDetails() {
     isActive &&
     Boolean(donationEth.trim()) &&
     !isTransactionBusy;
+  const statusBadgeClassName =
+    status === 0
+      ? "badge badge-primary"
+      : status === 1
+      ? "badge badge-success"
+      : status === 2
+      ? "badge badge-error"
+      : status === 3
+      ? "badge badge-warning"
+      : "badge badge-outline";
 
   useEffect(() => {
     let ignore = false;
@@ -260,11 +345,54 @@ function CampaignDetails() {
   }, [campaignAddress, metadataURI, t]);
 
   useEffect(() => {
+    let ignore = false;
+
+    async function loadContributionHistory() {
+      if (!campaignAddress) {
+        setContributions([]);
+        setContributionHistoryError("");
+        setIsLoadingContributions(false);
+        return;
+      }
+
+      setIsLoadingContributions(true);
+      setContributionHistoryError("");
+
+      try {
+        const nextContributions = await fetchSubgraphData(campaignAddress);
+
+        if (!ignore) {
+          setContributions(nextContributions);
+          setContributionHistoryError("");
+        }
+      } catch (error) {
+        console.error("Error loading contribution history", campaignAddress, error);
+
+        if (!ignore) {
+          setContributions([]);
+          setContributionHistoryError(t("campaignDetails.contributionHistory.error"));
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingContributions(false);
+        }
+      }
+    }
+
+    loadContributionHistory();
+
+    return () => {
+      ignore = true;
+    };
+  }, [campaignAddress, contributionHistoryVersion, t]);
+
+  useEffect(() => {
     if (!receipt.isSuccess || !pendingAction) return;
 
     if (pendingAction === "donate") {
       setDonationStatus("success");
       setDonationEth("");
+      setContributionHistoryVersion((current) => current + 1);
     } else {
       setOwnerActionStatus("success");
     }
@@ -343,8 +471,8 @@ function CampaignDetails() {
 
   if (!campaignAddress) {
     return (
-      <div className="app">
-        <p className="status-message status-message--error">
+      <div className="alert alert-error">
+        <p>
           {t("campaignDetails.invalidAddress")}
         </p>
       </div>
@@ -352,64 +480,136 @@ function CampaignDetails() {
   }
 
   return (
-    <div className="app">
-      <div className="app-content">
-        {(isLoadingContract || isLoadingMetadata) && (
-          <p>{t("campaignDetails.loading")}</p>
-        )}
+    <div className="space-y-6">
+      {(isLoadingContract || isLoadingMetadata) && (
+        <p className="alert alert-info">{t("campaignDetails.loading")}</p>
+      )}
 
-        {contractError && (
-          <p className="status-message status-message--error">
-            {t("common.errorWithMessage", {
-              message: contractError.message,
-            })}
-          </p>
-        )}
+      {contractError && (
+        <p className="alert alert-error">
+          {t("common.errorWithMessage", {
+            message: contractError.message,
+          })}
+        </p>
+      )}
 
-        {metadataError && (
-          <p className="status-message status-message--error">
-            {t("common.errorWithMessage", {
-              message: metadataError,
-            })}
-          </p>
-        )}
+      {metadataError && (
+        <p className="alert alert-error">
+          {t("common.errorWithMessage", {
+            message: metadataError,
+          })}
+        </p>
+      )}
 
-        <section className="panel campaign-detail">
-          <div className="campaign-detail__media">
+      <section className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
+        <div className="space-y-6">
+          <figure className="flex min-h-64 items-center justify-center overflow-hidden rounded-box bg-base-300">
             {image ? (
               <img
-                className="campaign-detail__image"
+                className="h-full w-full object-cover"
                 src={ipfsToHttp(image)}
                 alt={title}
               />
             ) : (
-              <div className="campaign-detail__image-placeholder">
+              <span className="text-base-content/70">
                 {t("campaignDetails.noImage")}
-              </div>
+              </span>
             )}
-          </div>
+          </figure>
 
-          <div className="campaign-detail__content">
-            <div>
-              <p className="campaign-detail__status">
+          <section className="card bg-base-100 shadow-xl">
+            <div className="card-body">
+              <h2 className="card-title">
+                {t("campaignDetails.contributionHistory.title")}
+              </h2>
+
+              {isLoadingContributions && (
+                <p className="alert alert-info">
+                  {t("campaignDetails.contributionHistory.loading")}
+                </p>
+              )}
+
+              {contributionHistoryError && (
+                <p className="alert alert-error">
+                  {contributionHistoryError}
+                </p>
+              )}
+
+              {!isLoadingContributions &&
+                !contributionHistoryError &&
+                contributions.length === 0 && (
+                  <p className="alert alert-info">
+                    {t("campaignDetails.contributionHistory.empty")}
+                  </p>
+                )}
+
+              {!isLoadingContributions &&
+                !contributionHistoryError &&
+                contributions.length > 0 && (
+                  <div className="grid gap-3">
+                    {contributions.map((contribution) => (
+                      <article
+                        className="grid gap-3 rounded-box bg-base-200 p-4 sm:grid-cols-2"
+                        key={`${contribution.transactionHash}-${contribution.timestamp}-${contribution.user}`}
+                      >
+                        <div>
+                          <span className="text-sm text-base-content/70">{t("campaignDetails.contributionHistory.user")}</span>
+                          <strong
+                            className="block font-mono"
+                            title={contribution.user}
+                          >
+                            {truncateHex(contribution.user)}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-sm text-base-content/70">{t("campaignDetails.contributionHistory.amount")}</span>
+                          <strong className="block">{formatEthAmount(contribution.amount)} ETH</strong>
+                        </div>
+                        <div>
+                          <span className="text-sm text-base-content/70">{t("campaignDetails.contributionHistory.date")}</span>
+                          <strong className="block">
+                            {formatContributionDate(contribution.timestamp) ||
+                              t("campaignDetails.notAvailable")}
+                          </strong>
+                        </div>
+                        <div>
+                          <span className="text-sm text-base-content/70">{t("campaignDetails.contributionHistory.transaction")}</span>
+                          <strong
+                            className="block font-mono"
+                            title={contribution.transactionHash}
+                          >
+                            {truncateHex(contribution.transactionHash)}
+                          </strong>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                )}
+            </div>
+          </section>
+        </div>
+
+        <div className="card bg-base-100 shadow-xl">
+          <div className="card-body gap-6">
+            <div className="space-y-3">
+              <p className={statusBadgeClassName}>
                 {t(getStatusLabelKey(status))}
               </p>
-              <h1 className="campaign-detail__title">{title}</h1>
-              <p className="campaign-detail__description">{description}</p>
+              <h1 className="text-3xl font-bold text-base-content">{title}</h1>
+              <p className="text-base-content/70">{description}</p>
             </div>
 
-            <div className="campaign-progress">
-              <div className="campaign-progress__header">
+            <div className="space-y-2">
+              <div className="flex items-center justify-between gap-4">
                 <strong>{t("campaignDetails.progress")}</strong>
                 <span>{formatPercent(progressPercent)}</span>
               </div>
-              <div className="campaign-progress__track">
-                <div
-                  className="campaign-progress__bar"
-                  style={{ width: `${progressBarPercent}%` }}
-                />
-              </div>
-              <p className="campaign-progress__amount">
+              <progress
+                className="progress progress-primary w-full"
+                value={progressBarPercent}
+                max={100}
+              />
+              <p className="text-sm text-base-content/70">
                 {t("campaignDetails.raisedOfGoal", {
                   raised: formatEthAmount(totalRaised),
                   goal: formatEthAmount(goalAmount),
@@ -417,71 +617,71 @@ function CampaignDetails() {
               </p>
             </div>
 
-            <dl className="campaign-detail__stats">
-              <div>
-                <dt>{t("campaignDetails.deadline")}</dt>
+            <dl className="grid gap-3">
+              <div className="rounded-box bg-base-200 p-4">
+                <dt className="text-sm text-base-content/70">{t("campaignDetails.deadline")}</dt>
                 <dd>
                   {formatDeadline(deadline) || t("campaignDetails.noDeadline")}
                 </dd>
               </div>
-              <div>
-                <dt>{t("campaignDetails.owner")}</dt>
-                <dd className="campaign-detail__mono">
+              <div className="rounded-box bg-base-200 p-4">
+                <dt className="text-sm text-base-content/70">{t("campaignDetails.owner")}</dt>
+                <dd className="break-all font-mono">
                   {owner ?? t("campaignDetails.notAvailable")}
                 </dd>
               </div>
-              <div>
-                <dt>{t("campaignDetails.contract")}</dt>
-                <dd className="campaign-detail__mono">{campaignAddress}</dd>
+              <div className="rounded-box bg-base-200 p-4">
+                <dt className="text-sm text-base-content/70">{t("campaignDetails.contract")}</dt>
+                <dd className="break-all font-mono">{campaignAddress}</dd>
               </div>
             </dl>
 
             <form
-              className="campaign-donation"
+              className="space-y-3"
               onSubmit={(event) => {
                 event.preventDefault();
                 handleDonate();
               }}
             >
-              <label className="field-label" htmlFor="donation-eth">
-                {t("campaignDetails.donationAmount")}
-              </label>
-              <div className="campaign-donation__actions">
-                <input
-                  id="donation-eth"
-                  className="field-input"
-                  value={donationEth}
-                  onChange={(event) => {
-                    setDonationEth(event.target.value);
+              <div className="grid w-full gap-1">
+                <label className="label" htmlFor="donation-eth">{t("campaignDetails.donationAmount")}</label>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <input
+                    id="donation-eth"
+                    className="input w-full"
+                    value={donationEth}
+                    onChange={(event) => {
+                      setDonationEth(event.target.value);
 
-                    if (donationStatus !== "waitingTransaction") {
-                      setDonationStatus("inactive");
-                    }
-                  }}
-                  placeholder="0.01"
-                />
-                <button
-                  className="button button--primary"
-                  disabled={!canDonate}
-                  type="submit"
-                >
-                  {donationButtonText}
-                </button>
+                      if (donationStatus !== "waitingTransaction") {
+                        setDonationStatus("inactive");
+                      }
+                    }}
+                    placeholder="0.01"
+                  />
+                  <button
+                    className="btn btn-primary w-full sm:w-auto"
+                    disabled={!canDonate}
+                    type="submit"
+                  >
+                    {donationButtonText}
+                  </button>
+                </div>
               </div>
               {connection.status !== "connected" && (
-                <p className="campaign-detail__hint">
+                <p className="text-sm text-warning">
                   {t("campaignDetails.connectWalletToDonate")}
                 </p>
               )}
               {connection.status === "connected" && !isActive && (
-                <p className="campaign-detail__hint">
+                <p className="text-sm text-warning">
                   {t("campaignDetails.inactiveCampaignHint")}
                 </p>
               )}
             </form>
 
             {writeContract.error && (
-              <p className="status-message status-message--error">
+              <p className="alert alert-error">
                 {t("common.errorWithMessage", {
                   message: writeContract.error.message,
                 })}
@@ -489,19 +689,19 @@ function CampaignDetails() {
             )}
 
             {donationStatus === "success" && (
-              <p className="status-message status-message--success">
+              <p className="alert alert-success">
                 {t("campaignDetails.donationSuccess")}
               </p>
             )}
 
             {isOwner && (
-              <div className="campaign-owner-actions">
-                <h2 className="campaign-owner-actions__title">
+              <div className="space-y-4 rounded-box bg-base-200 p-4">
+                <h2 className="text-xl font-bold">
                   {t("campaignDetails.ownerOptions")}
                 </h2>
-                <div className="campaign-actions">
+                <div className="flex flex-col gap-3 sm:flex-row">
                   <button
-                    className="button"
+                    className="btn btn-secondary"
                     disabled={isTransactionBusy || !isSuccessful}
                     onClick={handleWithdraw}
                     type="button"
@@ -509,7 +709,7 @@ function CampaignDetails() {
                     {t("campaignDetails.withdraw")}
                   </button>
                   <button
-                    className="button"
+                    className="btn btn-outline"
                     disabled={isTransactionBusy || !isActive}
                     onClick={handleFinishCampaign}
                     type="button"
@@ -518,25 +718,25 @@ function CampaignDetails() {
                   </button>
                 </div>
                 {ownerActionStatus === "waitingTransaction" && (
-                  <p className="status-message">
+                  <p className="alert alert-info">
                     {t("campaignDetails.waitingTransaction")}
                   </p>
                 )}
                 {ownerActionStatus === "success" && (
-                  <p className="status-message status-message--success">
+                  <p className="alert alert-success">
                     {t("campaignDetails.actionSuccess")}
                   </p>
                 )}
                 {ownerActionStatus === "error" && (
-                  <p className="status-message status-message--error">
+                  <p className="alert alert-error">
                     {t("campaignDetails.actionError")}
                   </p>
                 )}
               </div>
             )}
           </div>
-        </section>
-      </div>
+        </div>
+      </section>
     </div>
   );
 }

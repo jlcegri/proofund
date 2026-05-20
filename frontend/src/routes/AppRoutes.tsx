@@ -1,9 +1,9 @@
 import { Navigate, Routes, Route } from "react-router-dom";
-import Home from "../screens/home/Home";
-import CreateCampaign from "../screens/create-campaign/CreateCampaign";
-import ExploreCampaigns from "../screens/explore-campaigns/ExploreCampaigns";
-import CampaignDetails from "../screens/campaign-details/CampaignDetails";
-import Profile from "../screens/profile/Profile";
+import Home from "../screens/Home";
+import CreateCampaign from "../screens/CreateCampaign";
+import ExploreCampaigns from "../screens/ExploreCampaigns";
+import CampaignDetails from "../screens/CampaignDetails";
+import Profile from "../screens/Profile";
 
 function AppRoutes() {
   return (
