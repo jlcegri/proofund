@@ -5,6 +5,7 @@ import {
   useConnectors,
   type Connector,
 } from "wagmi";
+import { sepolia } from "wagmi/chains";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import Avatar from "boring-avatars";
 import { useEffect, useState } from "react";
@@ -15,6 +16,7 @@ import {
 } from "../i18n/language";
 import coinbaseLogo from "../assets/wallets/coinbase.png";
 import metamaskLogo from "../assets/wallets/metamask.svg";
+import proofundLogo from "../assets/proofund_logo_sinfondo.png";
 
 const walletOptions = [
   {
@@ -114,7 +116,7 @@ function AppNavbar() {
 
   function handleWalletConnect(connector: Connector) {
     connect.mutate(
-      { connector },
+      { connector, chainId: sepolia.id },
       {
         onSuccess: () => {
           setIsWalletModalOpen(false);
@@ -132,37 +134,53 @@ function AppNavbar() {
     setIsProfileMenuOpen(false);
   }
 
+  function renderBrandLink() {
+    return (
+      <Link
+        to={`/${currentLanguage}`}
+        className="btn btn-ghost gap-2 px-2 text-xl font-bold"
+      >
+        <img
+          alt=""
+          aria-hidden="true"
+          className="h-8 w-8 object-contain"
+          src={proofundLogo}
+        />
+        <span className="font-[Montserrat] font-bold">
+          Proo
+          <span className="text-success">
+            fund
+          </span>
+        </span>
+      </Link>
+    );
+  }
+
   return (
     <header className="navbar sticky top-0 z-50 bg-base-100 text-base-content shadow-sm">
       <div className="navbar-start">
-        <Link to={`/${currentLanguage}`} className="btn btn-ghost text-xl">
-          {t("navbar.brand")}
-        </Link>
-      </div>
-
-      <nav className="navbar-center hidden gap-2 md:flex" aria-label={t("navbar.navigation")}>
-        <Link className="btn btn-ghost btn-sm" to={`/${currentLanguage}/explore`}>
-          {t("navbar.explore")}
-        </Link>
-        <Link className="btn btn-ghost btn-sm" to={`/${currentLanguage}/campaign/create`}>
-          {t("navbar.createCampaign")}
-        </Link>
-      </nav>
-
-      <div className="navbar-end gap-2">
-        <button
-          aria-label="Toggle theme"
-          className="btn btn-ghost btn-sm"
-          onClick={() => setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"))}
-          type="button"
-        >
-          {theme === "dark" ? "Light" : "Dark"}
-        </button>
-
-        <div className="dropdown dropdown-end md:hidden">
-          <div tabIndex={0} role="button" className="btn btn-ghost btn-sm">
-            Menu
-          </div>
+        <div className="dropdown md:hidden">
+          <button
+            aria-label={t("navbar.navigation")}
+            className="btn btn-ghost btn-square"
+            tabIndex={0}
+            type="button"
+          >
+            <svg
+              aria-hidden="true"
+              className="h-5 w-5 stroke-current"
+              fill="none"
+              viewBox="0 0 24 24"
+              xmlns="http://www.w3.org/2000/svg"
+            >
+              <path
+                d="M4 6h16M4 12h16M4 18h16"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2"
+              />
+            </svg>
+          </button>
           <ul tabIndex={0} className="menu dropdown-content z-[55] mt-3 w-56 rounded-box bg-base-100 p-2 shadow-xl">
             <li>
               <Link to={`/${currentLanguage}/explore`}>
@@ -177,6 +195,52 @@ function AppNavbar() {
           </ul>
         </div>
 
+        <div className="hidden md:flex">
+          {renderBrandLink()}
+        </div>
+      </div>
+
+      <div className="navbar-center">
+        <div className="md:hidden">
+          {renderBrandLink()}
+        </div>
+
+        <nav className="hidden gap-2 md:flex" aria-label={t("navbar.navigation")}>
+          <Link className="btn btn-ghost btn-md" to={`/${currentLanguage}/explore`}>
+            {t("navbar.explore")}
+          </Link>
+          <Link className="btn btn-ghost btn-md" to={`/${currentLanguage}/campaign/create`}>
+            {t("navbar.createCampaign")}
+          </Link>
+        </nav>
+      </div>
+
+
+
+      <div className="navbar-end gap-2">
+
+        <button className="btn btn-ghost" type="button" onClick={toggleLanguage}>
+          {t("navbar.currentLanguage", {
+            language: currentLanguage.toUpperCase(),
+          })}
+        </button>
+        <label className="toggle text-base-content">
+          <input
+            type="checkbox"
+            className="theme-controller"
+            checked={theme === "dark"}
+            onChange={() => setTheme((currentTheme) => (currentTheme === "dark" ? "light" : "dark"))}
+          />
+
+          <svg aria-label="sun" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g strokeLinejoin="round" strokeLinecap="round" strokeWidth="2" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2"></path><path d="M12 20v2"></path><path d="m4.93 4.93 1.41 1.41"></path><path d="m17.66 17.66 1.41 1.41"></path><path d="M2 12h2"></path><path d="M20 12h2"></path><path d="m6.34 17.66-1.41 1.41"></path><path d="m19.07 4.93-1.41 1.41"></path></g></svg>
+
+          <svg aria-label="moon" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g strokeLinejoin="round" strokeLinecap="round" strokeWidth="2" fill="none" stroke="currentColor"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"></path></g></svg>
+
+        
+        </label>
+
+        
+
         <div
           className="relative flex items-center gap-2"
           onBlur={(event) => {
@@ -186,6 +250,7 @@ function AppNavbar() {
           }}
           tabIndex={0}
         >
+          
           {connection.status === "connected" && (
             <>
               <button
@@ -209,11 +274,7 @@ function AppNavbar() {
                   >
                     {t("navbar.myProfile")}
                   </button>
-                  <button className="btn btn-ghost w-full justify-start" type="button" onClick={toggleLanguage}>
-                    {t("navbar.currentLanguage", {
-                      language: currentLanguage.toUpperCase(),
-                    })}
-                  </button>
+                  
                   <button
                     className="btn btn-ghost w-full justify-start text-error"
                     type="button"
@@ -227,7 +288,7 @@ function AppNavbar() {
           )}
           {connection.status === "disconnected" && (
             <button
-              className="btn btn-primary btn-sm"
+              className="btn btn-success btn-sm"
               onClick={openWalletModal}
               type="button"
             >
@@ -235,7 +296,7 @@ function AppNavbar() {
             </button>
           )}
           {connection.status === "connecting" && (
-            <button className="btn btn-primary btn-sm btn-disabled" type="button">
+            <button className="btn btn-accent btn-sm btn-disabled" type="button">
               {t("navbar.connecting")}
             </button>
           )}
@@ -255,10 +316,10 @@ function AppNavbar() {
             role="dialog"
           >
             <div className="flex items-center justify-between gap-4">
-              <h2 className="text-xl font-bold" id="wallet-modal-title">{t("navbar.walletModalTitle")}</h2>
+              <h2 className="text-xl font-[Montserrat] font-bold" id="wallet-modal-title">{t("navbar.walletModalTitle")}</h2>
               <button
                 aria-label={t("navbar.closeWalletModal")}
-                className="btn btn-circle btn-ghost btn-sm"
+                className="btn btn-circle btn-ghost btn-sm text-xl font-[Montserrat] font-bold"
                 onClick={() => setIsWalletModalOpen(false)}
                 type="button"
               >

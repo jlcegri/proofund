@@ -7,7 +7,7 @@ function App() {
     <>
       <LanguageSync />
       <AppNavbar />
-      <main className="min-h-screen bg-base-200 text-base-content">
+      <main className="min-h-[calc(100vh-4rem)] bg-base-200 text-base-content">
         <div className="mx-auto w-full max-w-6xl px-4 py-8">
           <AppRoutes />
         </div>

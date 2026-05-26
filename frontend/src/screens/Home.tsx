@@ -1,6 +1,7 @@
 import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import { getLanguageFromPathname } from "../i18n/language";
+import proofundLogo from "../assets/proofund_logo_sinfondo.png";
 
 function Home() {
   const { t } = useTranslation();
@@ -11,12 +12,21 @@ function Home() {
   return (
     <div className="grid min-h-[calc(100vh-8rem)] items-center gap-8 lg:grid-cols-[minmax(0,1fr)_24rem]">
       <section className="space-y-6">
-        <span className="badge badge-primary badge-outline">
-          {t("home.badge")}
-        </span>
+
+        <img
+          alt=""
+          aria-hidden="true"
+          className="h-64 w-64 object-contain"
+          src={proofundLogo}
+        />
 
         <h1 className="max-w-3xl text-4xl font-bold leading-tight text-base-content md:text-6xl">
-          {t("home.title")}
+          <span className="font-[Montserrat] font-bold">
+          Proo
+          <span className="text-success">
+            fund
+          </span>
+        </span>
         </h1>
 
         <p className="max-w-2xl text-lg text-base-content/70">
@@ -25,7 +35,7 @@ function Home() {
 
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
-            className="btn btn-primary"
+            className="btn btn-success"
             onClick={() => navigate(`/${currentLanguage}/campaign/create`)}
             type="button"
           >
