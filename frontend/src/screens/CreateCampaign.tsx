@@ -1,8 +1,9 @@
 import {
   useConnection,
-  useConnectors,
+  useSwitchChain,
   useWriteContract,
 } from "wagmi";
+import { sepolia } from "wagmi/chains";
 import { parseEther } from "viem";
 import { useEffect, useState, type ChangeEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -16,6 +17,25 @@ dayjs.extend(customParseFormat);
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
 const ETH_FORMAT = /^\d+(\.\d{1,18})?$/;
 
+type FormErrorKey =
+  | "createCampaign.validation.titleRequired"
+  | "createCampaign.validation.titleMinLength"
+  | "createCampaign.validation.titleMaxLength"
+  | "createCampaign.validation.descriptionRequired"
+  | "createCampaign.validation.descriptionMinLength"
+  | "createCampaign.validation.descriptionMaxLength"
+  | "createCampaign.validation.goalRequired"
+  | "createCampaign.validation.goalInvalid"
+  | "createCampaign.validation.goalPositive"
+  | "createCampaign.validation.deadlineRequired"
+  | "createCampaign.validation.deadlineInvalid"
+  | "createCampaign.validation.deadlineFuture"
+  | "createCampaign.validation.imageRequired"
+  | "createCampaign.validation.imageType"
+  | "createCampaign.validation.imageSize"
+  | "createCampaign.validation.metadataUploadFailed"
+  | "createCampaign.validation.createFailed";
+
 type ValidationResult =
   | {
       isValid: true;
@@ -24,13 +44,13 @@ type ValidationResult =
     }
   | {
       isValid: false;
-      errors: string[];
+      errors: FormErrorKey[];
     };
 
 function CreateCampaign() {
   const { t } = useTranslation();
   const connection = useConnection();
-  const connectors = useConnectors();
+  const switchChain = useSwitchChain();
   const writeContract = useWriteContract();
   const [eth, setEth] = useState("");
   const [time, setTime] = useState("");
@@ -38,7 +58,7 @@ function CreateCampaign() {
   const [description, setDescription] = useState("");
   const [image, setImage] = useState<File | null>(null);
   const [imagePreviewUrl, setImagePreviewUrl] = useState("");
-  const [formErrors, setFormErrors] = useState<string[]>([]);
+  const [formErrorKeys, setFormErrorKeys] = useState<FormErrorKey[]>([]);
   const [status, setStatus] = useState<
     "inactive" | "uploadingMetadata" | "waitingTransaction" | "success" | "error"
   >("inactive");
@@ -68,7 +88,9 @@ function CreateCampaign() {
       ? t("createCampaign.success")
       : t("createCampaign.error");
   const isSubmitting =
-    status === "uploadingMetadata" || status === "waitingTransaction";
+    status === "uploadingMetadata" ||
+    status === "waitingTransaction" ||
+    switchChain.isPending;
   const previewTitle =
     title.trim() || t("createCampaign.preview.titlePlaceholder");
   const previewDescription =
@@ -80,7 +102,7 @@ function CreateCampaign() {
     time.trim() || t("createCampaign.preview.deadlinePlaceholder");
 
   function clearFeedback() {
-    setFormErrors([]);
+    setFormErrorKeys([]);
 
     if (status === "success" || status === "error") {
       setStatus("inactive");
@@ -88,7 +110,7 @@ function CreateCampaign() {
   }
 
   function validateForm(): ValidationResult {
-    const errors: string[] = [];
+    const errors: FormErrorKey[] = [];
     const trimmedTitle = title.trim();
     const trimmedDescription = description.trim();
     const trimmedEth = eth.trim();
@@ -97,60 +119,60 @@ function CreateCampaign() {
     let deadlineTimestamp = 0n;
 
     if (!trimmedTitle) {
-      errors.push(t("createCampaign.validation.titleRequired"));
+      errors.push("createCampaign.validation.titleRequired");
     } else if (trimmedTitle.length < 3) {
-      errors.push(t("createCampaign.validation.titleMinLength"));
+      errors.push("createCampaign.validation.titleMinLength");
     } else if (trimmedTitle.length > 80) {
-      errors.push(t("createCampaign.validation.titleMaxLength"));
+      errors.push("createCampaign.validation.titleMaxLength");
     }
 
     if (!trimmedDescription) {
-      errors.push(t("createCampaign.validation.descriptionRequired"));
+      errors.push("createCampaign.validation.descriptionRequired");
     } else if (trimmedDescription.length < 10) {
-      errors.push(t("createCampaign.validation.descriptionMinLength"));
+      errors.push("createCampaign.validation.descriptionMinLength");
     } else if (trimmedDescription.length > 1000) {
-      errors.push(t("createCampaign.validation.descriptionMaxLength"));
+      errors.push("createCampaign.validation.descriptionMaxLength");
     }
 
     if (!trimmedEth) {
-      errors.push(t("createCampaign.validation.goalRequired"));
+      errors.push("createCampaign.validation.goalRequired");
     } else if (!ETH_FORMAT.test(trimmedEth)) {
-      errors.push(t("createCampaign.validation.goalInvalid"));
+      errors.push("createCampaign.validation.goalInvalid");
     } else {
       try {
         goalAmount = parseEther(trimmedEth);
 
         if (goalAmount <= 0n) {
-          errors.push(t("createCampaign.validation.goalPositive"));
+          errors.push("createCampaign.validation.goalPositive");
         }
       } catch {
-        errors.push(t("createCampaign.validation.goalInvalid"));
+        errors.push("createCampaign.validation.goalInvalid");
       }
     }
 
     if (!trimmedDeadline) {
-      errors.push(t("createCampaign.validation.deadlineRequired"));
+      errors.push("createCampaign.validation.deadlineRequired");
     } else {
       const parsedDeadline = dayjs(trimmedDeadline, "DD-MM-YYYY", true);
 
       if (!parsedDeadline.isValid()) {
-        errors.push(t("createCampaign.validation.deadlineInvalid"));
+        errors.push("createCampaign.validation.deadlineInvalid");
       } else if (!parsedDeadline.isAfter(dayjs())) {
-        errors.push(t("createCampaign.validation.deadlineFuture"));
+        errors.push("createCampaign.validation.deadlineFuture");
       } else {
         deadlineTimestamp = BigInt(parsedDeadline.unix());
       }
     }
 
     if (!image) {
-      errors.push(t("createCampaign.validation.imageRequired"));
+      errors.push("createCampaign.validation.imageRequired");
     } else {
       if (!image.type.startsWith("image/")) {
-        errors.push(t("createCampaign.validation.imageType"));
+        errors.push("createCampaign.validation.imageType");
       }
 
       if (image.size > MAX_IMAGE_SIZE) {
-        errors.push(t("createCampaign.validation.imageSize"));
+        errors.push("createCampaign.validation.imageSize");
       }
     }
 
@@ -178,14 +200,14 @@ function CreateCampaign() {
     if (!selectedImage.type.startsWith("image/")) {
       setImage(null);
       event.target.value = "";
-      setFormErrors([t("createCampaign.validation.imageType")]);
+      setFormErrorKeys(["createCampaign.validation.imageType"]);
       return;
     }
 
     if (selectedImage.size > MAX_IMAGE_SIZE) {
       setImage(null);
       event.target.value = "";
-      setFormErrors([t("createCampaign.validation.imageSize")]);
+      setFormErrorKeys(["createCampaign.validation.imageSize"]);
       return;
     }
 
@@ -196,13 +218,19 @@ function CreateCampaign() {
     const validation = validateForm();
 
     if (!validation.isValid) {
-      setFormErrors(validation.errors);
+      setFormErrorKeys(validation.errors);
       setStatus("inactive");
       return;
     }
 
     try {
-      setFormErrors([]);
+      setFormErrorKeys([]);
+
+      if (connection.chain?.id !== sepolia.id) {
+        setStatus("waitingTransaction");
+        await switchChain.switchChainAsync({ chainId: sepolia.id });
+      }
+
       setStatus("uploadingMetadata");
 
       const formData = new FormData();
@@ -229,7 +257,7 @@ function CreateCampaign() {
         !data.metadataURI.trim()
       ) {
         setStatus("error");
-        setFormErrors([t("createCampaign.validation.metadataUploadFailed")]);
+        setFormErrorKeys(["createCampaign.validation.metadataUploadFailed"]);
         return;
       }
 
@@ -238,6 +266,7 @@ function CreateCampaign() {
       await writeContract.mutateAsync({
         address: campaignFactoryContractAddress,
         abi: campaignFactoryAbi,
+        chainId: sepolia.id,
         functionName: "createCampaign",
         args: [validation.goalAmount, validation.deadlineTimestamp, data.metadataURI],
       });
@@ -246,7 +275,7 @@ function CreateCampaign() {
     } catch (err) {
       console.error(err);
       setStatus("error");
-      setFormErrors([t("createCampaign.validation.createFailed")]);
+      setFormErrorKeys(["createCampaign.validation.createFailed"]);
     }
   }
 
@@ -254,13 +283,9 @@ function CreateCampaign() {
     <div className="space-y-6">
       {connection.status !== "connected" ? (
         <div className="space-y-3">
-          {connectors.map((connector) => (
-            <p className="alert alert-info" key={connector.id}>
-              {t("createCampaign.connectWalletPrompt", {
-                connectorName: connector.name,
-              })}
+            <p className="alert alert-info">
+              {t("createCampaign.connectWalletPrompt")}
             </p>
-          ))}
         </div>
       ) : (
         <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_24rem]">
@@ -345,7 +370,7 @@ function CreateCampaign() {
                         onChange={handleImageChange}
                       />
                       <label
-                        className={`btn btn-secondary${isSubmitting ? " btn-disabled" : ""}`}
+                        className={`btn btn-success${isSubmitting ? " btn-disabled" : ""}`}
                         htmlFor="campaign-image"
                         aria-disabled={isSubmitting}
                       >
@@ -357,14 +382,14 @@ function CreateCampaign() {
                     </div>
                   </div>
 
-                  {formErrors.length > 0 && (
+                  {formErrorKeys.length > 0 && (
                     <div
                       className="alert alert-error"
                       aria-live="polite"
                     >
                       <div>
-                        {formErrors.map((error) => (
-                          <p key={error}>{error}</p>
+                        {formErrorKeys.map((errorKey) => (
+                          <p key={errorKey}>{t(errorKey)}</p>
                         ))}
                       </div>
                     </div>
@@ -372,7 +397,7 @@ function CreateCampaign() {
 
                   <div className="card-actions justify-end">
                     <button
-                      className="btn btn-primary w-full sm:w-auto"
+                      className="btn btn-accent w-full sm:w-auto"
                       type="submit"
                       disabled={isSubmitting}
                     >
@@ -382,7 +407,7 @@ function CreateCampaign() {
                 </div>
               </form>
 
-              {status === "error" && writeContract.error && formErrors.length === 0 && (
+              {status === "error" && writeContract.error && formErrorKeys.length === 0 && (
                 <p className="alert alert-error">
                   {t("createCampaign.validation.createFailed")}
                 </p>
@@ -405,7 +430,7 @@ function CreateCampaign() {
                 )}
               </figure>
               <div className="card-body">
-                <p className="badge badge-primary badge-outline">
+                <p className="badge badge-sm badge-accent badge-outline px-1">
                   {t("createCampaign.preview.badge")}
                 </p>
                 <h2 className="card-title">{previewTitle}</h2>

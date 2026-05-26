@@ -14,7 +14,7 @@
       "coinbase": "Coinbase Wallet"
     },
     "language": "Language",
-    "currentLanguage": "Language: {{language}}",
+    "currentLanguage": "{{language}}",
     "navigation": "Main navigation"
   },
   "home": {

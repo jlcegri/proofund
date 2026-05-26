@@ -6,9 +6,11 @@ import { gql, request } from 'graphql-request';
 import {
   useConnection,
   useReadContract,
+  useSwitchChain,
   useWaitForTransactionReceipt,
   useWriteContract
 } from "wagmi";
+import { sepolia } from "wagmi/chains";
 import dayjs from "dayjs";
 import { campaignAbi } from "../contracts/abi/campaignAbi";
 
@@ -26,7 +28,7 @@ type PendingAction = "donate" | "withdraw" | "finish" | null;
 const query = gql`
   query CampaignContributions($campaign: Bytes!) {
     contributions(
-      first: 10
+      first: 3
       orderBy: timestamp
       orderDirection: desc
       where: { campaign: $campaign }
@@ -148,6 +150,7 @@ function CampaignDetails() {
   const { t } = useTranslation();
   const { campaignAddress: campaignAddressParam } = useParams();
   const connection = useConnection();
+  const switchChain = useSwitchChain();
   const writeContract = useWriteContract();
   const [donationEth, setDonationEth] = useState("");
   const [donationStatus, setDonationStatus] =
@@ -282,6 +285,7 @@ function CampaignDetails() {
   const isTransactionBusy =
     donationStatus === "waitingTransaction" ||
     ownerActionStatus === "waitingTransaction" ||
+    switchChain.isPending ||
     writeContract.isPending;
   const canDonate =
     connection.status === "connected" &&
@@ -290,7 +294,7 @@ function CampaignDetails() {
     !isTransactionBusy;
   const statusBadgeClassName =
     status === 0
-      ? "badge badge-primary"
+      ? "badge badge-accent"
       : status === 1
       ? "badge badge-success"
       : status === 2
@@ -418,9 +422,14 @@ function CampaignDetails() {
       setPendingAction("donate");
       setDonationStatus("waitingTransaction");
 
+      if (connection.chain?.id !== sepolia.id) {
+        await switchChain.mutateAsync({ chainId: sepolia.id });
+      }
+
       await writeContract.mutateAsync({
         address: campaignAddress,
         abi: campaignAbi,
+        chainId: sepolia.id,
         functionName: "fund",
         value: parseEther(donationEth),
       });
@@ -438,9 +447,14 @@ function CampaignDetails() {
       setPendingAction("withdraw");
       setOwnerActionStatus("waitingTransaction");
 
+      if (connection.chain?.id !== sepolia.id) {
+        await switchChain.mutateAsync({ chainId: sepolia.id });
+      }
+
       await writeContract.mutateAsync({
         address: campaignAddress,
         abi: campaignAbi,
+        chainId: sepolia.id,
         functionName: "withdraw",
       });
     } catch (error) {
@@ -457,9 +471,14 @@ function CampaignDetails() {
       setPendingAction("finish");
       setOwnerActionStatus("waitingTransaction");
 
+      if (connection.chain?.id !== sepolia.id) {
+        await switchChain.mutateAsync({ chainId: sepolia.id });
+      }
+
       await writeContract.mutateAsync({
         address: campaignAddress,
         abi: campaignAbi,
+        chainId: sepolia.id,
         functionName: "finishCampaign",
       });
     } catch (error) {
@@ -482,7 +501,9 @@ function CampaignDetails() {
   return (
     <div className="space-y-6">
       {(isLoadingContract || isLoadingMetadata) && (
-        <p className="alert alert-info">{t("campaignDetails.loading")}</p>
+        <div className="flex items-center justify-center">
+          <span className="loading loading-spinner text-success h-32 w-32"></span>
+        </div>
       )}
 
       {contractError && (
@@ -502,8 +523,8 @@ function CampaignDetails() {
       )}
 
       <section className="grid gap-6 lg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)]">
-        <div className="space-y-6">
-          <figure className="flex min-h-64 items-center justify-center overflow-hidden rounded-box bg-base-300">
+        <div className="contents lg:block lg:space-y-6">
+          <figure className="order-1 flex min-h-64 items-center justify-center overflow-hidden rounded-box bg-base-300 lg:order-none">
             {image ? (
               <img
                 className="h-full w-full object-cover"
@@ -511,22 +532,20 @@ function CampaignDetails() {
                 alt={title}
               />
             ) : (
-              <span className="text-base-content/70">
-                {t("campaignDetails.noImage")}
-              </span>
+              <span className="loading loading-spinner text-success h-32 w-32"></span>
             )}
           </figure>
 
-          <section className="card bg-base-100 shadow-xl">
+          <section className="order-3 card bg-base-100 shadow-xl lg:order-none">
             <div className="card-body">
               <h2 className="card-title">
                 {t("campaignDetails.contributionHistory.title")}
               </h2>
 
               {isLoadingContributions && (
-                <p className="alert alert-info">
-                  {t("campaignDetails.contributionHistory.loading")}
-                </p>
+                <div className="flex items-center justify-center">
+                  <span className="loading loading-spinner text-success h-32 w-32"></span>
+                </div>
               )}
 
               {contributionHistoryError && (
@@ -589,7 +608,7 @@ function CampaignDetails() {
           </section>
         </div>
 
-        <div className="card bg-base-100 shadow-xl">
+        <div className="order-2 card bg-base-100 shadow-xl lg:order-none">
           <div className="card-body gap-6">
             <div className="space-y-3">
               <p className={statusBadgeClassName}>
@@ -605,7 +624,7 @@ function CampaignDetails() {
                 <span>{formatPercent(progressPercent)}</span>
               </div>
               <progress
-                className="progress progress-primary w-full"
+                className="progress progress-success w-full"
                 value={progressBarPercent}
                 max={100}
               />
@@ -660,7 +679,7 @@ function CampaignDetails() {
                     placeholder="0.01"
                   />
                   <button
-                    className="btn btn-primary w-full sm:w-auto"
+                    className="btn btn-accent w-full sm:w-auto"
                     disabled={!canDonate}
                     type="submit"
                   >
@@ -701,7 +720,7 @@ function CampaignDetails() {
                 </h2>
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button
-                    className="btn btn-secondary"
+                    className="btn btn-success"
                     disabled={isTransactionBusy || !isSuccessful}
                     onClick={handleWithdraw}
                     type="button"

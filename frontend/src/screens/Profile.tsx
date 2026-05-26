@@ -20,7 +20,7 @@ const query = gql`
 
 const url = import.meta.env.VITE_API_URL;
 const token = import.meta.env.VITE_TOKEN;
-const headers = { Authorization: `Bearer ${token}` };
+const headers = { Authorization: `Bearer ${token}` }; 
 const statsLimit = 1000;
 
 type ProfileStatistics = {

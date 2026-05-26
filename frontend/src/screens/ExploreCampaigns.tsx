@@ -180,13 +180,10 @@ function ExploreCampaigns() {
 
     return (
         <div className="space-y-6">
-            {campaignsQuery.isPending && (
-                <p className="alert alert-info">{t("exploreCampaigns.loading")}</p>
-            )}
-            {isLoadingCampaignMetadata && (
-                <p className="alert alert-info">
-                    {t("exploreCampaigns.loadingMetadata")}
-                </p>
+            {(campaignsQuery.isPending || isLoadingCampaignMetadata) && (
+                <div className="flex min-h-[60vh] items-center justify-center">
+                    <span className="loading loading-spinner text-success h-32 w-32"></span>
+                </div>
             )}
             {campaignMetadataError && (
                 <p className="alert alert-error">
@@ -234,7 +231,7 @@ function ExploreCampaigns() {
                                 <h3 className="card-title">{campaign.title}</h3>
                                 <div className="space-y-2">
                                     <progress
-                                        className="progress progress-primary w-full"
+                                        className="progress progress-success w-full"
                                         value={progressBarPercent}
                                         max={100}
                                     />

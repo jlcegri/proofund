@@ -14,7 +14,7 @@
       "coinbase": "Coinbase Wallet"
     },
     "language": "Idioma",
-    "currentLanguage": "Idioma: {{language}}",
+    "currentLanguage": "{{language}}",
     "navigation": "Navegación principal"
   },
   "home": {
@@ -35,7 +35,7 @@
   },
   "createCampaign": {
     "title": "Crear campaña",
-    "connectWalletPrompt": "Conéctate con {{connectorName}} para poder crear tus campañas",
+    "connectWalletPrompt": "Conéctate con una wallet compatible para poder crear tus campañas",
     "ethLabel": "ETH",
     "deadlineLabel": "Fecha de finalización",
     "campaignTitleLabel": "Nombre",
