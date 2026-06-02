@@ -23,7 +23,19 @@ type CampaignMetadata = {
 };
 
 type TransactionStatus = "inactive" | "waitingTransaction" | "success" | "error";
-type PendingAction = "donate" | "withdraw" | "finish" | null;
+type PendingAction = "donate" | "withdraw" | "finish" | "cancel" | "refund";
+type PendingTransaction = {
+  action: PendingAction;
+  hash: `0x${string}`;
+  donation?: {
+    amount: bigint;
+    user: string;
+  };
+};
+
+const refundGracePeriodSeconds = 7 * 24 * 60 * 60;
+const secondsPerDay = 24 * 60 * 60;
+const ETH_FORMAT = /^\d+(\.\d{1,18})?$/;
 
 const query = gql`
   query CampaignContributions($campaign: Bytes!) {
@@ -36,6 +48,39 @@ const query = gql`
       user
       amount
       timestamp
+      transactionHash
+    }
+  }
+`;
+
+const userContributionQuery = gql`
+  query UserCampaignContribution($campaign: Bytes!, $user: Bytes!) {
+    contributions(
+      first: 1
+      where: { campaign: $campaign, user: $user }
+    ) {
+      transactionHash
+    }
+  }
+`;
+
+const userRefundQuery = gql`
+  query UserCampaignRefund($campaign: Bytes!, $user: Bytes!) {
+    refunds(
+      first: 1
+      where: { campaign: $campaign, user: $user }
+    ) {
+      transactionHash
+    }
+  }
+`;
+
+const userWithdrawalQuery = gql`
+  query UserCampaignWithdrawal($campaign: Bytes!, $user: Bytes!) {
+    withdrawals(
+      first: 1
+      where: { campaign: $campaign, user: $user }
+    ) {
       transactionHash
     }
   }
@@ -61,6 +106,24 @@ type ContributionHistoryResponse = {
   }>;
 };
 
+type UserContributionResponse = {
+  contributions: Array<{
+    transactionHash: string;
+  }>;
+};
+
+type UserRefundResponse = {
+  refunds: Array<{
+    transactionHash: string;
+  }>;
+};
+
+type UserWithdrawalResponse = {
+  withdrawals: Array<{
+    transactionHash: string;
+  }>;
+};
+
 function ipfsToHttp(uri: string) {
   if (uri.startsWith("ipfs://")) {
     return uri.replace("ipfs://", "https://ipfs.io/ipfs/");
@@ -71,6 +134,20 @@ function ipfsToHttp(uri: string) {
 
 function getString(value: unknown) {
   return typeof value === "string" ? value : "";
+}
+
+function parsePositiveEthAmount(value: string) {
+  const trimmedValue = value.trim();
+
+  if (!trimmedValue || !ETH_FORMAT.test(trimmedValue)) return null;
+
+  try {
+    const amount = parseEther(trimmedValue);
+
+    return amount > 0n ? amount : null;
+  } catch {
+    return null;
+  }
 }
 
 function getMetadataImage(metadata: CampaignMetadata) {
@@ -119,10 +196,42 @@ function parseSubgraphBigInt(value: string) {
   }
 }
 
+function hasTransactionHash(
+  contributions: ContributionHistoryItem[],
+  transactionHash: string
+) {
+  return contributions.some(
+    (contribution) =>
+      contribution.transactionHash.toLowerCase() === transactionHash.toLowerCase()
+  );
+}
+
+function mergeOptimisticContribution(
+  contributions: ContributionHistoryItem[],
+  optimisticContribution: ContributionHistoryItem | null
+) {
+  if (
+    !optimisticContribution ||
+    hasTransactionHash(contributions, optimisticContribution.transactionHash)
+  ) {
+    return contributions;
+  }
+
+  return [optimisticContribution, ...contributions].slice(0, 3);
+}
+
 function truncateHex(value: string) {
   if (value.length <= 12) return value;
 
   return `${value.slice(0, 6)}...${value.slice(-4)}`;
+}
+
+function getSepoliaAddressUrl(address: string) {
+  return `https://sepolia.etherscan.io/address/${address}`;
+}
+
+function getSepoliaTransactionUrl(address: string) {
+  return `https://sepolia.etherscan.io/tx/${address}`;
 }
 
 function formatContributionDate(timestamp: number) {
@@ -146,6 +255,54 @@ async function fetchSubgraphData(campaign: string) {
   }));
 }
 
+async function fetchUserHasContributed(campaign: string, user: string) {
+  const variables = {
+    campaign: campaign.toLowerCase(),
+    user: user.toLowerCase(),
+  };
+
+  const data = (await request(
+    url,
+    userContributionQuery,
+    variables,
+    headers
+  )) as UserContributionResponse;
+
+  return data.contributions.length > 0;
+}
+
+async function fetchUserHasRefunded(campaign: string, user: string) {
+  const variables = {
+    campaign: campaign.toLowerCase(),
+    user: user.toLowerCase(),
+  };
+
+  const data = (await request(
+    url,
+    userRefundQuery,
+    variables,
+    headers
+  )) as UserRefundResponse;
+
+  return data.refunds.length > 0;
+}
+
+async function fetchUserHasWithdrawn(campaign: string, user: string) {
+  const variables = {
+    campaign: campaign.toLowerCase(),
+    user: user.toLowerCase(),
+  };
+
+  const data = (await request(
+    url,
+    userWithdrawalQuery,
+    variables,
+    headers
+  )) as UserWithdrawalResponse;
+
+  return data.withdrawals.length > 0;
+}
+
 function CampaignDetails() {
   const { t } = useTranslation();
   const { campaignAddress: campaignAddressParam } = useParams();
@@ -157,14 +314,32 @@ function CampaignDetails() {
     useState<TransactionStatus>("inactive");
   const [ownerActionStatus, setOwnerActionStatus] =
     useState<TransactionStatus>("inactive");
-  const [pendingAction, setPendingAction] = useState<PendingAction>(null);
+  const [refundStatus, setRefundStatus] =
+    useState<TransactionStatus>("inactive");
+  const [pendingTransaction, setPendingTransaction] =
+    useState<PendingTransaction | null>(null);
   const [metadata, setMetadata] = useState<CampaignMetadata | null>(null);
   const [metadataError, setMetadataError] = useState("");
   const [isLoadingMetadata, setIsLoadingMetadata] = useState(false);
   const [contributions, setContributions] = useState<ContributionHistoryItem[]>([]);
+  const [optimisticContribution, setOptimisticContribution] =
+    useState<ContributionHistoryItem | null>(null);
+  const [optimisticContributionRefreshCount, setOptimisticContributionRefreshCount] =
+    useState(0);
   const [isLoadingContributions, setIsLoadingContributions] = useState(false);
   const [contributionHistoryError, setContributionHistoryError] = useState("");
   const [contributionHistoryVersion, setContributionHistoryVersion] = useState(0);
+  const [hasUserContributed, setHasUserContributed] = useState(false);
+  const [isLoadingUserContribution, setIsLoadingUserContribution] = useState(false);
+  const [hasUserRefunded, setHasUserRefunded] = useState(false);
+  const [hasOwnerWithdrawn, setHasOwnerWithdrawn] = useState(false);
+  const [isLoadingRefundEvent, setIsLoadingRefundEvent] = useState(false);
+  const [isLoadingWithdrawalEvent, setIsLoadingWithdrawalEvent] = useState(false);
+  const [showRefundAlreadyCompleted, setShowRefundAlreadyCompleted] = useState(false);
+  const [showWithdrawAlreadyCompleted, setShowWithdrawAlreadyCompleted] = useState(false);
+  const [currentTimestamp, setCurrentTimestamp] = useState(() =>
+    Math.floor(Date.now() / 1000)
+  );
 
   const campaignAddress = campaignAddressParam && isAddress(campaignAddressParam)
     ? campaignAddressParam as `0x${string}`
@@ -225,8 +400,30 @@ function CampaignDetails() {
     },
   });
 
+  const userContributionAmountQuery = useReadContract({
+    address: campaignAddress,
+    abi: campaignAbi,
+    functionName: "contributions",
+    args: connection.address ? [connection.address] : undefined,
+    query: {
+      enabled:
+        hasCampaignAddress &&
+        connection.status === "connected" &&
+        Boolean(connection.address),
+    },
+  });
+
+  const fundsWithdrawnQuery = useReadContract({
+    address: campaignAddress,
+    abi: campaignAbi,
+    functionName: "fundsWithdrawn",
+    query: {
+      enabled: hasCampaignAddress,
+    },
+  });
+
   const receipt = useWaitForTransactionReceipt({
-    hash: writeContract.data,
+    hash: pendingTransaction?.hash,
   });
 
   const goalAmount = goalAmountQuery.data ?? 0n;
@@ -234,11 +431,37 @@ function CampaignDetails() {
   const deadline = deadlineQuery.data;
   const status = statusQuery.data;
   const owner = ownerQuery.data;
+  const userContributionAmount = userContributionAmountQuery.data;
+  const fundsWithdrawn = fundsWithdrawnQuery.data ?? false;
   const metadataURI = metadataURIQuery.data ?? "";
   const refetchTotalRaised = totalRaisedQuery.refetch;
   const refetchStatus = statusQuery.refetch;
+  const refetchUserContributionAmount = userContributionAmountQuery.refetch;
+  const refetchFundsWithdrawn = fundsWithdrawnQuery.refetch;
   const isActive = status === 0;
   const isSuccessful = status === 1;
+  const deadlineTimestamp = deadline ? Number(deadline) : 0;
+  const hasReachedGoal = goalAmount > 0n && totalRaised >= goalAmount;
+  const hasPassedDeadline = Boolean(
+    deadlineTimestamp && currentTimestamp >= deadlineTimestamp
+  );
+  const isAfterRefundGracePeriod = Boolean(
+    deadlineTimestamp &&
+      currentTimestamp >= deadlineTimestamp + refundGracePeriodSeconds
+  );
+  const isRefundAvailableByStatus = status === 2 || status === 3;
+  const isRefundAvailable =
+    isRefundAvailableByStatus || (isActive && isAfterRefundGracePeriod);
+  const shouldShowRefundGracePeriodHint = isActive && isAfterRefundGracePeriod;
+  const daysUntilDeadline = deadlineTimestamp
+    ? Math.max(0, Math.ceil((deadlineTimestamp - currentTimestamp) / secondsPerDay))
+    : null;
+  const deadlineRemainingText =
+    deadlineTimestamp && currentTimestamp >= deadlineTimestamp
+      ? t("campaignDetails.deadlinePassed")
+      : daysUntilDeadline
+      ? t("campaignDetails.daysRemaining", { count: daysUntilDeadline })
+      : "";
   const image = metadata ? getMetadataImage(metadata) : undefined;
   const title =
     getString(metadata?.title) ||
@@ -282,15 +505,51 @@ function CampaignDetails() {
       : donationStatus === "error"
       ? t("campaignDetails.donationError")
       : t("campaignDetails.donate");
+  const refundButtonText =
+    refundStatus === "waitingTransaction"
+      ? t("campaignDetails.waitingTransaction")
+      : refundStatus === "success"
+      ? t("campaignDetails.refundDone")
+      : refundStatus === "error"
+      ? t("campaignDetails.refundError")
+      : t("campaignDetails.refund");
   const isTransactionBusy =
     donationStatus === "waitingTransaction" ||
     ownerActionStatus === "waitingTransaction" ||
+    refundStatus === "waitingTransaction" ||
     switchChain.isPending ||
     writeContract.isPending;
+  const donationAmount = parsePositiveEthAmount(donationEth);
+  const hasRefundableContribution =
+    typeof userContributionAmount === "bigint" && userContributionAmount > 0n;
+  const hasCompletedRefund =
+    hasUserRefunded ||
+    (hasUserContributed &&
+      typeof userContributionAmount === "bigint" &&
+      userContributionAmount === 0n);
+  const hasCompletedWithdraw = hasOwnerWithdrawn || fundsWithdrawn;
   const canDonate =
     connection.status === "connected" &&
     isActive &&
-    Boolean(donationEth.trim()) &&
+    donationAmount !== null &&
+    !isTransactionBusy;
+  const canRefund =
+    connection.status === "connected" &&
+    isRefundAvailable &&
+    (hasRefundableContribution || hasCompletedRefund) &&
+    !isLoadingUserContribution &&
+    !isLoadingRefundEvent &&
+    !isTransactionBusy;
+  const canWithdraw =
+    isOwner &&
+    isSuccessful &&
+    !isLoadingWithdrawalEvent &&
+    !fundsWithdrawnQuery.isPending &&
+    !isTransactionBusy;
+  const canFinishCampaign =
+    isOwner &&
+    isActive &&
+    (hasReachedGoal || hasPassedDeadline) &&
     !isTransactionBusy;
   const statusBadgeClassName =
     status === 0
@@ -302,6 +561,16 @@ function CampaignDetails() {
       : status === 3
       ? "badge badge-warning"
       : "badge badge-outline";
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentTimestamp(Math.floor(Date.now() / 1000));
+    }, 60 * 1000);
+
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -364,10 +633,21 @@ function CampaignDetails() {
 
       try {
         const nextContributions = await fetchSubgraphData(campaignAddress);
+        const hasIndexedOptimisticContribution = Boolean(
+          optimisticContribution &&
+            hasTransactionHash(nextContributions, optimisticContribution.transactionHash)
+        );
 
         if (!ignore) {
-          setContributions(nextContributions);
+          setContributions(
+            mergeOptimisticContribution(nextContributions, optimisticContribution)
+          );
           setContributionHistoryError("");
+
+          if (hasIndexedOptimisticContribution) {
+            setOptimisticContribution(null);
+            setOptimisticContributionRefreshCount(0);
+          }
         }
       } catch (error) {
         console.error("Error loading contribution history", campaignAddress, error);
@@ -388,29 +668,255 @@ function CampaignDetails() {
     return () => {
       ignore = true;
     };
-  }, [campaignAddress, contributionHistoryVersion, t]);
+  }, [campaignAddress, contributionHistoryVersion, optimisticContribution, t]);
 
   useEffect(() => {
-    if (!receipt.isSuccess || !pendingAction) return;
+    if (!optimisticContribution || optimisticContributionRefreshCount >= 6) {
+      return;
+    }
 
-    if (pendingAction === "donate") {
+    const timer = window.setTimeout(() => {
+      setOptimisticContributionRefreshCount((current) => current + 1);
+      setContributionHistoryVersion((current) => current + 1);
+    }, 4000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [optimisticContribution, optimisticContributionRefreshCount]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadUserContribution() {
+      if (
+        !campaignAddress ||
+        connection.status !== "connected" ||
+        !connection.address
+      ) {
+        setHasUserContributed(false);
+        setIsLoadingUserContribution(false);
+        return;
+      }
+
+      setIsLoadingUserContribution(true);
+
+      try {
+        const nextHasUserContributed = await fetchUserHasContributed(
+          campaignAddress,
+          connection.address
+        );
+
+        if (!ignore) {
+          setHasUserContributed(nextHasUserContributed);
+        }
+      } catch (error) {
+        console.error("Error loading user contribution", campaignAddress, error);
+
+        if (!ignore) {
+          setHasUserContributed(false);
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingUserContribution(false);
+        }
+      }
+    }
+
+    loadUserContribution();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    campaignAddress,
+    connection.address,
+    connection.status,
+    contributionHistoryVersion,
+  ]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadUserRefund() {
+      if (
+        !campaignAddress ||
+        connection.status !== "connected" ||
+        !connection.address
+      ) {
+        setHasUserRefunded(false);
+        setIsLoadingRefundEvent(false);
+        return;
+      }
+
+      setIsLoadingRefundEvent(true);
+
+      try {
+        const nextHasUserRefunded = await fetchUserHasRefunded(
+          campaignAddress,
+          connection.address
+        );
+
+        if (!ignore) {
+          setHasUserRefunded(nextHasUserRefunded);
+        }
+      } catch (error) {
+        console.error("Error loading user refund", campaignAddress, error);
+
+        if (!ignore) {
+          setHasUserRefunded(false);
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingRefundEvent(false);
+        }
+      }
+    }
+
+    loadUserRefund();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    campaignAddress,
+    connection.address,
+    connection.status,
+    contributionHistoryVersion,
+  ]);
+
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadUserWithdrawal() {
+      if (
+        !campaignAddress ||
+        connection.status !== "connected" ||
+        !connection.address
+      ) {
+        setHasOwnerWithdrawn(false);
+        setIsLoadingWithdrawalEvent(false);
+        return;
+      }
+
+      setIsLoadingWithdrawalEvent(true);
+
+      try {
+        const nextHasOwnerWithdrawn = await fetchUserHasWithdrawn(
+          campaignAddress,
+          connection.address
+        );
+
+        if (!ignore) {
+          setHasOwnerWithdrawn(nextHasOwnerWithdrawn);
+        }
+      } catch (error) {
+        console.error("Error loading user withdrawal", campaignAddress, error);
+
+        if (!ignore) {
+          setHasOwnerWithdrawn(false);
+        }
+      } finally {
+        if (!ignore) {
+          setIsLoadingWithdrawalEvent(false);
+        }
+      }
+    }
+
+    loadUserWithdrawal();
+
+    return () => {
+      ignore = true;
+    };
+  }, [
+    campaignAddress,
+    connection.address,
+    connection.status,
+    contributionHistoryVersion,
+  ]);
+
+  useEffect(() => {
+    if (!receipt.isSuccess || !pendingTransaction) return;
+
+    if (pendingTransaction.action === "donate") {
       setDonationStatus("success");
       setDonationEth("");
+      if (pendingTransaction.donation) {
+        const nextOptimisticContribution = {
+          user: pendingTransaction.donation.user,
+          amount: pendingTransaction.donation.amount,
+          timestamp: Math.floor(Date.now() / 1000),
+          transactionHash: pendingTransaction.hash,
+        };
+
+        setOptimisticContribution(nextOptimisticContribution);
+        setOptimisticContributionRefreshCount(0);
+        setContributions((currentContributions) =>
+          mergeOptimisticContribution(
+            currentContributions,
+            nextOptimisticContribution
+          )
+        );
+      }
       setContributionHistoryVersion((current) => current + 1);
+    } else if (pendingTransaction.action === "refund") {
+      setRefundStatus("success");
+      setHasUserRefunded(true);
+      setShowRefundAlreadyCompleted(false);
+      setContributionHistoryVersion((current) => current + 1);
+      refetchUserContributionAmount();
+    } else if (pendingTransaction.action === "withdraw") {
+      setOwnerActionStatus("success");
+      setHasOwnerWithdrawn(true);
+      setShowWithdrawAlreadyCompleted(false);
+      refetchFundsWithdrawn();
     } else {
       setOwnerActionStatus("success");
     }
 
     refetchTotalRaised();
     refetchStatus();
-    setPendingAction(null);
-  }, [pendingAction, receipt.isSuccess, refetchStatus, refetchTotalRaised]);
+    setPendingTransaction(null);
+  }, [
+    pendingTransaction,
+    receipt.isSuccess,
+    refetchFundsWithdrawn,
+    refetchStatus,
+    refetchTotalRaised,
+    refetchUserContributionAmount,
+  ]);
+
+  useEffect(() => {
+    if (!receipt.isError || !pendingTransaction) return;
+
+    if (pendingTransaction.action === "donate") {
+      setDonationStatus("error");
+    } else if (pendingTransaction.action === "refund") {
+      setRefundStatus("error");
+    } else {
+      setOwnerActionStatus("error");
+    }
+
+    setPendingTransaction(null);
+  }, [pendingTransaction, receipt.isError]);
+
+  useEffect(() => {
+    setRefundStatus("inactive");
+    setShowRefundAlreadyCompleted(false);
+    setShowWithdrawAlreadyCompleted(false);
+  }, [campaignAddress, connection.address]);
+
+  useEffect(() => {
+    setOptimisticContribution(null);
+    setOptimisticContributionRefreshCount(0);
+  }, [campaignAddress]);
 
   async function handleDonate() {
     if (
       !campaignAddress ||
-      !donationEth.trim() ||
+      donationAmount === null ||
       connection.status !== "connected" ||
+      !connection.address ||
       !isActive ||
       isTransactionBusy
     ) {
@@ -418,73 +924,192 @@ function CampaignDetails() {
       return;
     }
 
+    const donorAddress = connection.address;
+
     try {
-      setPendingAction("donate");
       setDonationStatus("waitingTransaction");
 
       if (connection.chain?.id !== sepolia.id) {
         await switchChain.mutateAsync({ chainId: sepolia.id });
       }
 
-      await writeContract.mutateAsync({
+      const transactionHash = await writeContract.mutateAsync({
         address: campaignAddress,
         abi: campaignAbi,
         chainId: sepolia.id,
         functionName: "fund",
-        value: parseEther(donationEth),
+        value: donationAmount,
+      });
+
+      setPendingTransaction({
+        action: "donate",
+        hash: transactionHash,
+        donation: {
+          amount: donationAmount,
+          user: donorAddress,
+        },
       });
     } catch (error) {
       console.error(error);
-      setPendingAction(null);
+      setPendingTransaction(null);
       setDonationStatus("error");
     }
   }
 
   async function handleWithdraw() {
-    if (!campaignAddress || !isOwner || !isSuccessful || isTransactionBusy) return;
+    if (!campaignAddress || !connection.address || !canWithdraw) return;
+
+    if (hasCompletedWithdraw) {
+      setOwnerActionStatus("inactive");
+      setShowWithdrawAlreadyCompleted(true);
+      return;
+    }
 
     try {
-      setPendingAction("withdraw");
+      const latestHasOwnerWithdrawn = await fetchUserHasWithdrawn(
+        campaignAddress,
+        connection.address
+      );
+
+      if (latestHasOwnerWithdrawn) {
+        setHasOwnerWithdrawn(true);
+        setOwnerActionStatus("inactive");
+        setShowWithdrawAlreadyCompleted(true);
+        return;
+      }
+
+      setShowWithdrawAlreadyCompleted(false);
       setOwnerActionStatus("waitingTransaction");
 
       if (connection.chain?.id !== sepolia.id) {
         await switchChain.mutateAsync({ chainId: sepolia.id });
       }
 
-      await writeContract.mutateAsync({
+      const transactionHash = await writeContract.mutateAsync({
         address: campaignAddress,
         abi: campaignAbi,
         chainId: sepolia.id,
         functionName: "withdraw",
       });
+
+      setPendingTransaction({
+        action: "withdraw",
+        hash: transactionHash,
+      });
     } catch (error) {
       console.error(error);
-      setPendingAction(null);
+      setPendingTransaction(null);
       setOwnerActionStatus("error");
     }
   }
 
   async function handleFinishCampaign() {
-    if (!campaignAddress || !isOwner || !isActive || isTransactionBusy) return;
+    if (!campaignAddress || !canFinishCampaign) return;
 
     try {
-      setPendingAction("finish");
       setOwnerActionStatus("waitingTransaction");
 
       if (connection.chain?.id !== sepolia.id) {
         await switchChain.mutateAsync({ chainId: sepolia.id });
       }
 
-      await writeContract.mutateAsync({
+      const transactionHash = await writeContract.mutateAsync({
         address: campaignAddress,
         abi: campaignAbi,
         chainId: sepolia.id,
         functionName: "finishCampaign",
       });
+
+      setPendingTransaction({
+        action: "finish",
+        hash: transactionHash,
+      });
     } catch (error) {
       console.error(error);
-      setPendingAction(null);
+      setPendingTransaction(null);
       setOwnerActionStatus("error");
+    }
+  }
+
+  async function handleCancelCampaign() {
+    if (!campaignAddress || !isOwner || !isActive || isTransactionBusy) return;
+
+    try {
+      setOwnerActionStatus("waitingTransaction");
+
+      const transactionHash = await writeContract.mutateAsync({
+        address: campaignAddress,
+        abi: campaignAbi,
+        functionName: "cancelCampaign",
+      });
+
+      setPendingTransaction({
+        action: "cancel",
+        hash: transactionHash,
+      });
+    } catch (error) {
+      console.error(error);
+      setPendingTransaction(null);
+      setOwnerActionStatus("error");
+    }
+  }
+
+  async function handleRefund() {
+    if (
+      !campaignAddress ||
+      connection.status !== "connected" ||
+      !connection.address ||
+      !isRefundAvailable ||
+      (!hasRefundableContribution && !hasCompletedRefund) ||
+      isLoadingUserContribution ||
+      isLoadingRefundEvent ||
+      isTransactionBusy
+    ) {
+      setRefundStatus("error");
+      return;
+    }
+
+    if (hasCompletedRefund) {
+      setRefundStatus("inactive");
+      setShowRefundAlreadyCompleted(true);
+      return;
+    }
+
+    try {
+      const latestHasUserRefunded = await fetchUserHasRefunded(
+        campaignAddress,
+        connection.address
+      );
+
+      if (latestHasUserRefunded) {
+        setHasUserRefunded(true);
+        setRefundStatus("inactive");
+        setShowRefundAlreadyCompleted(true);
+        return;
+      }
+
+      setShowRefundAlreadyCompleted(false);
+      setRefundStatus("waitingTransaction");
+
+      if (connection.chain?.id !== sepolia.id) {
+        await switchChain.mutateAsync({ chainId: sepolia.id });
+      }
+
+      const transactionHash = await writeContract.mutateAsync({
+        address: campaignAddress,
+        abi: campaignAbi,
+        chainId: sepolia.id,
+        functionName: "refund",
+      });
+
+      setPendingTransaction({
+        action: "refund",
+        hash: transactionHash,
+      });
+    } catch (error) {
+      console.error(error);
+      setPendingTransaction(null);
+      setRefundStatus("error");
     }
   }
 
@@ -573,12 +1198,13 @@ function CampaignDetails() {
                       >
                         <div>
                           <span className="text-sm text-base-content/70">{t("campaignDetails.contributionHistory.user")}</span>
-                          <strong
-                            className="block font-mono"
+                          <a
+                            className="link link-hover block font-mono"
+                            href={getSepoliaAddressUrl(contribution.user)}
                             title={contribution.user}
                           >
                             {truncateHex(contribution.user)}
-                          </strong>
+                          </a>
                         </div>
                         <div>
                           <span className="text-sm text-base-content/70">{t("campaignDetails.contributionHistory.amount")}</span>
@@ -593,12 +1219,13 @@ function CampaignDetails() {
                         </div>
                         <div>
                           <span className="text-sm text-base-content/70">{t("campaignDetails.contributionHistory.transaction")}</span>
-                          <strong
-                            className="block font-mono"
+                          <a
+                            className="link link-hover block font-mono"
+                            href={getSepoliaTransactionUrl(contribution.transactionHash)}
                             title={contribution.transactionHash}
                           >
                             {truncateHex(contribution.transactionHash)}
-                          </strong>
+                          </a>
                         </div>
                       </article>
                     ))}
@@ -608,7 +1235,7 @@ function CampaignDetails() {
           </section>
         </div>
 
-        <div className="order-2 card bg-base-100 shadow-xl lg:order-none">
+        <div className="order-2 card bg-base-100 shadow-xl lg:order-none lg:self-start">
           <div className="card-body gap-6">
             <div className="space-y-3">
               <p className={statusBadgeClassName}>
@@ -641,17 +1268,38 @@ function CampaignDetails() {
                 <dt className="text-sm text-base-content/70">{t("campaignDetails.deadline")}</dt>
                 <dd>
                   {formatDeadline(deadline) || t("campaignDetails.noDeadline")}
+                  {deadlineRemainingText && (
+                    <span className="mt-1 block text-sm text-base-content/70">
+                      {deadlineRemainingText}
+                    </span>
+                  )}
                 </dd>
               </div>
               <div className="rounded-box bg-base-200 p-4">
                 <dt className="text-sm text-base-content/70">{t("campaignDetails.owner")}</dt>
                 <dd className="break-all font-mono">
-                  {owner ?? t("campaignDetails.notAvailable")}
+                  {owner ? (
+                    <a
+                      className="link link-hover"
+                      href={getSepoliaAddressUrl(owner)}
+                    >
+                      {owner}
+                    </a>
+                  ) : (
+                    t("campaignDetails.notAvailable")
+                  )}
                 </dd>
               </div>
               <div className="rounded-box bg-base-200 p-4">
                 <dt className="text-sm text-base-content/70">{t("campaignDetails.contract")}</dt>
-                <dd className="break-all font-mono">{campaignAddress}</dd>
+                <dd className="break-all font-mono">
+                  <a
+                    className="link link-hover"
+                    href={getSepoliaAddressUrl(campaignAddress)}
+                  >
+                    {campaignAddress}
+                  </a>
+                </dd>
               </div>
             </dl>
 
@@ -668,6 +1316,8 @@ function CampaignDetails() {
                   <input
                     id="donation-eth"
                     className="input w-full"
+                    inputMode="decimal"
+                    aria-invalid={donationEth.trim() ? donationAmount === null : undefined}
                     value={donationEth}
                     onChange={(event) => {
                       setDonationEth(event.target.value);
@@ -713,6 +1363,47 @@ function CampaignDetails() {
               </p>
             )}
 
+            {isRefundAvailable && (hasUserContributed || hasCompletedRefund) && (
+              <div className="space-y-4 rounded-box bg-base-200 p-4">
+                <h2 className="text-xl font-bold">
+                  {t("campaignDetails.refundOptions")}
+                </h2>
+                <button
+                  className="btn btn-warning w-full sm:w-auto"
+                  disabled={!canRefund}
+                  onClick={handleRefund}
+                  type="button"
+                >
+                  {refundButtonText}
+                </button>
+                {shouldShowRefundGracePeriodHint && (
+                  <p className="text-sm text-base-content/70">
+                    {t("campaignDetails.refundGracePeriodHint")}
+                  </p>
+                )}
+                {connection.status !== "connected" && (
+                  <p className="text-sm text-warning">
+                    {t("campaignDetails.connectWalletToRefund")}
+                  </p>
+                )}
+                {showRefundAlreadyCompleted && (
+                  <p className="alert alert-info">
+                    {t("campaignDetails.refundAlreadyCompleted")}
+                  </p>
+                )}
+                {refundStatus === "success" && (
+                  <p className="alert alert-success">
+                    {t("campaignDetails.refundSuccess")}
+                  </p>
+                )}
+                {refundStatus === "error" && (
+                  <p className="alert alert-error">
+                    {t("campaignDetails.refundError")}
+                  </p>
+                )}
+              </div>
+            )}
+
             {isOwner && (
               <div className="space-y-4 rounded-box bg-base-200 p-4">
                 <h2 className="text-xl font-bold">
@@ -721,7 +1412,7 @@ function CampaignDetails() {
                 <div className="flex flex-col gap-3 sm:flex-row">
                   <button
                     className="btn btn-success"
-                    disabled={isTransactionBusy || !isSuccessful}
+                    disabled={!canWithdraw}
                     onClick={handleWithdraw}
                     type="button"
                   >
@@ -729,16 +1420,29 @@ function CampaignDetails() {
                   </button>
                   <button
                     className="btn btn-outline"
-                    disabled={isTransactionBusy || !isActive}
+                    disabled={!canFinishCampaign}
                     onClick={handleFinishCampaign}
                     type="button"
                   >
                     {t("campaignDetails.finishCampaign")}
                   </button>
+                  <button
+                    className="btn btn-error btn-outline"
+                    disabled={isTransactionBusy || !isActive}
+                    onClick={handleCancelCampaign}
+                    type="button"
+                  >
+                    {t("campaignDetails.cancelCampaign")}
+                  </button>
                 </div>
                 {ownerActionStatus === "waitingTransaction" && (
                   <p className="alert alert-info">
                     {t("campaignDetails.waitingTransaction")}
+                  </p>
+                )}
+                {showWithdrawAlreadyCompleted && (
+                  <p className="alert alert-info">
+                    {t("campaignDetails.withdrawAlreadyCompleted")}
                   </p>
                 )}
                 {ownerActionStatus === "success" && (
