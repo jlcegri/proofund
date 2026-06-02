@@ -1,16 +1,24 @@
 import {
   useConnection,
+  usePublicClient,
   useSwitchChain,
   useWriteContract,
 } from "wagmi";
 import { sepolia } from "wagmi/chains";
-import { parseEther } from "viem";
+import {
+  decodeEventLog,
+  parseEther,
+  type Address,
+  type TransactionReceipt,
+} from "viem";
 import { useEffect, useState, type ChangeEvent } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 import dayjs from "dayjs";
 import customParseFormat from "dayjs/plugin/customParseFormat";
 import { campaignFactoryAbi } from "../contracts/abi/campaignFactoryAbi";
 import { campaignFactoryContractAddress } from "../contracts/address/campaignFactoryContractAddress";
+import { getLanguageFromPathname } from "../i18n/language";
 
 dayjs.extend(customParseFormat);
 
@@ -47,11 +55,36 @@ type ValidationResult =
       errors: FormErrorKey[];
     };
 
+function getCreatedCampaignAddress(logs: TransactionReceipt["logs"]) {
+  for (const log of logs) {
+    try {
+      const decodedLog = decodeEventLog({
+        abi: campaignFactoryAbi,
+        data: log.data,
+        topics: log.topics,
+      });
+
+      if (decodedLog.eventName === "CampaignCreated") {
+        const args = decodedLog.args as { campaign?: Address };
+
+        return args.campaign ?? null;
+      }
+    } catch {
+      continue;
+    }
+  }
+
+  return null;
+}
+
 function CreateCampaign() {
   const { t } = useTranslation();
   const connection = useConnection();
+  const publicClient = usePublicClient();
   const switchChain = useSwitchChain();
   const writeContract = useWriteContract();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [eth, setEth] = useState("");
   const [time, setTime] = useState("");
   const [title, setTitle] = useState("");
@@ -86,7 +119,7 @@ function CreateCampaign() {
       ? t("createCampaign.waitingTransaction")
       : status === "success"
       ? t("createCampaign.success")
-      : t("createCampaign.error");
+      : t("createCampaign.submit");
   const isSubmitting =
     status === "uploadingMetadata" ||
     status === "waitingTransaction" ||
@@ -100,6 +133,7 @@ function CreateCampaign() {
     : t("createCampaign.preview.goalPlaceholder");
   const previewDeadline =
     time.trim() || t("createCampaign.preview.deadlinePlaceholder");
+  const currentLanguage = getLanguageFromPathname(location.pathname);
 
   function clearFeedback() {
     setFormErrorKeys([]);
@@ -263,7 +297,11 @@ function CreateCampaign() {
 
       setStatus("waitingTransaction");
 
-      await writeContract.mutateAsync({
+      if (!publicClient) {
+        throw new Error("Public client is not available");
+      }
+
+      const transactionHash = await writeContract.mutateAsync({
         address: campaignFactoryContractAddress,
         abi: campaignFactoryAbi,
         chainId: sepolia.id,
@@ -271,7 +309,17 @@ function CreateCampaign() {
         args: [validation.goalAmount, validation.deadlineTimestamp, data.metadataURI],
       });
 
+      const receipt = await publicClient.waitForTransactionReceipt({
+        hash: transactionHash,
+      });
+      const createdCampaignAddress = getCreatedCampaignAddress(receipt.logs);
+
+      if (!createdCampaignAddress) {
+        throw new Error("CampaignCreated event was not found");
+      }
+
       setStatus("success");
+      navigate(`/${currentLanguage}/campaign/${createdCampaignAddress}`);
     } catch (err) {
       console.error(err);
       setStatus("error");
