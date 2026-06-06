@@ -272,7 +272,7 @@ function CreateCampaign() {
       formData.append("description", description.trim());
 
       if (image) {
-        formData.append("images", image);
+        formData.append("image", image);
       }
 
       const response = await fetch("http://localhost:3001/api/upload", {
@@ -407,7 +407,7 @@ function CreateCampaign() {
                   </label>
 
                   <div className="grid w-full gap-1">
-                    <span className="label">{t("createCampaign.imagesLabel")}</span>
+                    <span className="label">{t("createCampaign.imageLabel")}</span>
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
                       <input
                         id="campaign-image"

@@ -42,7 +42,7 @@
     "campaignTitlePlaceholder": "Título de la campaña",
     "descriptionLabel": "Descripción",
     "descriptionPlaceholder": "Descripción de la campaña",
-    "imagesLabel": "Imagen",
+    "imageLabel": "Imagen",
     "selectImage": "Seleccionar imagen",
     "noImageSelected": "Ninguna imagen seleccionada",
     "selectedImage": "Imagen seleccionada: {{fileName}}",

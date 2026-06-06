@@ -19,7 +19,6 @@ type CampaignMetadata = {
   name?: unknown;
   description?: unknown;
   image?: unknown;
-  images?: unknown;
 };
 
 type TransactionStatus = "inactive" | "waitingTransaction" | "success" | "error";
@@ -151,11 +150,7 @@ function parsePositiveEthAmount(value: string) {
 }
 
 function getMetadataImage(metadata: CampaignMetadata) {
-  if (Array.isArray(metadata.images)) {
-    return metadata.images.find((image): image is string => typeof image === "string");
-  }
-
-  return getString(metadata.images) || getString(metadata.image) || undefined;
+  return getString(metadata.image) || undefined;
 }
 
 function formatEthAmount(value?: bigint) {
@@ -1202,6 +1197,7 @@ function CampaignDetails() {
                             className="link link-hover block font-mono"
                             href={getSepoliaAddressUrl(contribution.user)}
                             title={contribution.user}
+                            target="_blank"
                           >
                             {truncateHex(contribution.user)}
                           </a>
@@ -1223,6 +1219,7 @@ function CampaignDetails() {
                             className="link link-hover block font-mono"
                             href={getSepoliaTransactionUrl(contribution.transactionHash)}
                             title={contribution.transactionHash}
+                            target="_blank"
                           >
                             {truncateHex(contribution.transactionHash)}
                           </a>

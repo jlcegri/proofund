@@ -28,7 +28,6 @@ type CampaignMetadata = {
     title?: unknown;
     name?: unknown;
     image?: unknown;
-    images?: unknown;
 };
 
 function ipfsToHttp(uri: string) {
@@ -44,11 +43,7 @@ function getString(value: unknown) {
 }
 
 function getMetadataImage(metadata: CampaignMetadata) {
-    if (Array.isArray(metadata.images)) {
-        return metadata.images.find((image): image is string => typeof image === "string");
-    }
-
-    return getString(metadata.images) || getString(metadata.image) || undefined;
+    return getString(metadata.image) || undefined;
 }
 
 function formatEthAmount(value?: bigint) {

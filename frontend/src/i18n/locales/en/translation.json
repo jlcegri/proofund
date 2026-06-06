@@ -42,7 +42,7 @@
     "campaignTitlePlaceholder": "Campaign title",
     "descriptionLabel": "Description",
     "descriptionPlaceholder": "Campaign description",
-    "imagesLabel": "Image",
+    "imageLabel": "Image",
     "selectImage": "Select image",
     "noImageSelected": "No image selected",
     "selectedImage": "Selected image: {{fileName}}",

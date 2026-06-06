@@ -32,7 +32,7 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: {
     fileSize: 5 * 1024 * 1024, // max. 5mb permitido por imagen
-    files: 5
+    files: 1
   },
   fileFilter: (req, file, cb) => {
     if (!file.mimetype.startsWith("image/")) {
@@ -83,10 +83,10 @@ async function uploadJSONToIPFS(metadata) {
   return `ipfs://${response.data.IpfsHash}`;
 }
 
-app.post("/api/upload", upload.array("images", 5), async (req, res) => {
+app.post("/api/upload", upload.single("image"), async (req, res) => {
   try {
     const { title, description } = req.body;
-    const files = req.files || [];
+    const file = req.file;
 
     if (!title || !description) {
       return res.status(400).json({
@@ -94,23 +94,18 @@ app.post("/api/upload", upload.array("images", 5), async (req, res) => {
       });
     }
 
-    if (files.length === 0) {
+    if (!file) {
       return res.status(400).json({
-        error: "At least one image is required"
+        error: "Image is required"
       });
     }
 
-    const imageURIs = [];
-
-    for (const file of files) {
-      const imageURI = await uploadImageToIPFS(file);
-      imageURIs.push(imageURI);
-    }
+    const imageURI = await uploadImageToIPFS(file);
 
     const metadata = {
       title,
       description,
-      images: imageURIs,
+      image: imageURI,
       version: 1
     };
 
@@ -133,6 +128,23 @@ app.get("/api/health", (req, res) => {
   res.json({
     status: "ok"
   });
+});
+
+app.use((error, req, res, next) => {
+  if (res.headersSent) {
+    return next(error);
+  }
+
+  if (
+    error instanceof multer.MulterError ||
+    error.message === "Only image files are allowed"
+  ) {
+    return res.status(400).json({
+      error: error.message
+    });
+  }
+
+  return next(error);
 });
 
 app.listen(PORT, () => {
