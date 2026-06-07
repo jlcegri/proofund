@@ -213,15 +213,19 @@ function ExploreCampaigns() {
                             key={campaign.address}
                             to={`/${currentLanguage}/campaign/${campaign.address}`}
                         >
-                            {campaign.image && (
-                                <figure className="h-48 bg-base-200">
+                            <figure className="h-48 bg-base-200 flex items-center justify-center">
+                                {campaign.image ? (
                                     <img
                                         className="h-full w-full object-cover"
                                         src={ipfsToHttp(campaign.image)}
                                         alt={campaign.title}
                                     />
-                                </figure>
-                            )}
+                                ) : (
+                                    <span className="text-base-content/50 text-sm">
+                                        {t("common.noImage")}
+                                    </span>
+                                )}
+                            </figure>
                             <div className="card-body">
                                 <h3 className="card-title">{campaign.title}</h3>
                                 <div className="space-y-2">

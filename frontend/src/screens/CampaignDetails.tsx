@@ -1152,7 +1152,9 @@ function CampaignDetails() {
                 alt={title}
               />
             ) : (
-              <span className="loading loading-spinner text-success h-32 w-32"></span>
+              <span className="text-base-content/50 text-sm">
+                {t("common.noImage")}
+              </span>
             )}
           </figure>
 
