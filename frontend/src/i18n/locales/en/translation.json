@@ -195,6 +195,7 @@
     "back": "Back",
     "cancel": "Cancel",
     "confirm": "Confirm",
-    "transactionHash": "Tx hash: {{hash}}"
+    "transactionHash": "Tx hash: {{hash}}",
+    "noImage": "Image not available"
   }
 }
