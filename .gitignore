@@ -1,5 +1,5 @@
 # Node modules
-/node_modules
+node_modules
 
 # Compilation output
 /dist
@@ -16,8 +16,8 @@
 # Typechain output
 /types
 
-# Hardhat coverage reports
-/coverage
+# Coverage reports
+coverage
 
 # Examples
 /examples
@@ -26,5 +26,3 @@
 /ignition/parameters.json
 
 .env
-/server/.env
-/server/node_modules
