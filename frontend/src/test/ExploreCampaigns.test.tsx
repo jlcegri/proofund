@@ -35,9 +35,13 @@ vi.mock("react-i18next", () => {
 });
 
 describe("ExploreCampaigns", () => {
-  afterEach(cleanup);
+  afterEach(() => {
+    cleanup();
+    vi.restoreAllMocks();
+  });
 
   beforeEach(() => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
     vi.clearAllMocks();
     vi.unstubAllGlobals();
   });
@@ -173,5 +177,73 @@ describe("ExploreCampaigns", () => {
     render(<ExploreCampaigns />);
 
     expect(screen.getByText("exploreCampaigns.empty")).toBeInTheDocument();
+  });
+
+  it("muestra error cuando useReadContract falla al obtener las campañas", () => {
+    vi.mocked(useReadContract).mockReturnValue({
+      data: undefined,
+      isPending: false,
+      error: new Error("Contract error"),
+    } as any);
+
+    vi.mocked(usePublicClient).mockReturnValue(null as any);
+
+    render(<ExploreCampaigns />);
+
+    expect(screen.getByText("common.errorWithMessage")).toBeInTheDocument();
+  });
+
+  it("renderiza una imagen cuando la campaña tiene imagen en sus metadatos", async () => {
+    const campaignAddress = "0x0000000000000000000000000000000000000001" as `0x${string}`;
+
+    vi.mocked(useReadContract).mockReturnValue({
+      data: [campaignAddress],
+      isPending: false,
+      error: null,
+    } as any);
+
+    vi.mocked(usePublicClient).mockReturnValue({
+      readContract: vi.fn().mockImplementation(({ functionName }: { functionName: string }) => {
+        if (functionName === "metadataURI") return Promise.resolve("ipfs://QmTest");
+        if (functionName === "goalAmount") return Promise.resolve(1000000000000000000n);
+        if (functionName === "totalRaised") return Promise.resolve(500000000000000000n);
+        return Promise.resolve(null);
+      }),
+    } as any);
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ title: "Con Imagen", image: "ipfs://QmImg" }),
+    }));
+
+    render(<ExploreCampaigns />);
+
+    await screen.findByText("Con Imagen");
+    expect(document.querySelector("img")).toBeInTheDocument();
+  });
+
+  it("muestra el fallback cuando el fetch de metadatos devuelve un error HTTP", async () => {
+    const campaignAddress = "0x0000000000000000000000000000000000000001" as `0x${string}`;
+
+    vi.mocked(useReadContract).mockReturnValue({
+      data: [campaignAddress],
+      isPending: false,
+      error: null,
+    } as any);
+
+    vi.mocked(usePublicClient).mockReturnValue({
+      readContract: vi.fn().mockImplementation(({ functionName }: { functionName: string }) => {
+        if (functionName === "metadataURI") return Promise.resolve("ipfs://QmTest");
+        if (functionName === "goalAmount") return Promise.resolve(1000000000000000000n);
+        if (functionName === "totalRaised") return Promise.resolve(500000000000000000n);
+        return Promise.resolve(null);
+      }),
+    } as any);
+
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok: false, status: 404 }));
+
+    render(<ExploreCampaigns />);
+
+    expect(await screen.findByText("exploreCampaigns.campaignFallback")).toBeInTheDocument();
   });
 });

@@ -1,13 +1,10 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import {
-  useConnection,
-  usePublicClient,
-  useSwitchChain,
-  useWriteContract,
-} from "wagmi";
+import { decodeEventLog } from "viem";
+import { useConnection, usePublicClient, useSwitchChain, useWriteContract } from "wagmi";
+import { useNavigate } from "react-router-dom";
 import CreateCampaign from "../screens/CreateCampaign";
 
 vi.mock("wagmi", () => ({
@@ -21,9 +18,14 @@ vi.mock("wagmi/chains", () => ({
   sepolia: { id: 11155111 },
 }));
 
+vi.mock("viem", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("viem")>();
+  return { ...actual, decodeEventLog: vi.fn() };
+});
+
 vi.mock("react-router-dom", () => ({
   useLocation: () => ({ pathname: "/en/create" }),
-  useNavigate: () => vi.fn(),
+  useNavigate: vi.fn(),
 }));
 
 vi.mock("react-i18next", () => {
@@ -38,6 +40,7 @@ describe("CreateCampaign", () => {
     vi.clearAllMocks();
     vi.unstubAllGlobals();
 
+    vi.mocked(useNavigate).mockReturnValue(vi.fn());
     vi.mocked(useConnection).mockReturnValue({
       status: "connected",
       chain: { id: 11155111 },
@@ -150,5 +153,123 @@ describe("CreateCampaign", () => {
     expect(
       await screen.findByText("createCampaign.validation.metadataUploadFailed")
     ).toBeInTheDocument();
+  });
+
+  it("flujo completo: crea la campaña y navega a su página", async () => {
+    const campaignAddress = "0x000000000000000000000000000000000000000a" as const;
+
+    const mockNavigate = vi.fn();
+    vi.mocked(useNavigate).mockReturnValue(mockNavigate);
+
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ metadataURI: "ipfs://QmTest" }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const mockMutateAsync = vi.fn().mockResolvedValue("0xTxHash");
+    vi.mocked(useWriteContract).mockReturnValue({
+      mutateAsync: mockMutateAsync,
+      error: null,
+      data: undefined,
+    } as any);
+
+    const mockWaitForReceipt = vi.fn().mockResolvedValue({
+      logs: [{ data: "0x", topics: [] }],
+    });
+    vi.mocked(usePublicClient).mockReturnValue({
+      waitForTransactionReceipt: mockWaitForReceipt,
+    } as any);
+
+    vi.mocked(decodeEventLog).mockReturnValue({
+      eventName: "CampaignCreated",
+      args: { campaign: campaignAddress },
+    } as any);
+
+    const user = userEvent.setup();
+    render(<CreateCampaign />);
+
+    await user.type(screen.getByLabelText("createCampaign.campaignTitleLabel"), "Mi campaña");
+    await user.type(screen.getByLabelText("createCampaign.descriptionLabel"), "Una descripción válida");
+    await user.type(screen.getByLabelText("createCampaign.ethLabel"), "1");
+    await user.type(screen.getByLabelText("createCampaign.deadlineLabel"), "01-01-2030");
+    await user.upload(
+      screen.getByLabelText("createCampaign.selectImage"),
+      new File(["img"], "photo.png", { type: "image/png" })
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "createCampaign.submit" }));
+
+    await waitFor(() =>
+      expect(mockFetch).toHaveBeenCalledWith(
+        "http://localhost:3001/api/upload",
+        expect.objectContaining({ method: "POST" })
+      )
+    );
+
+    await waitFor(() =>
+      expect(mockMutateAsync).toHaveBeenCalledWith(
+        expect.objectContaining({ functionName: "createCampaign" })
+      )
+    );
+
+    await waitFor(() =>
+      expect(mockWaitForReceipt).toHaveBeenCalledWith({ hash: "0xTxHash" })
+    );
+
+    await waitFor(() =>
+      expect(mockNavigate).toHaveBeenCalledWith(
+        "/en/campaign/0x000000000000000000000000000000000000000a"
+      )
+    );
+  });
+
+  it("muestra mensaje de conectar wallet para crear campaña", async () => {
+    vi.mocked(useConnection).mockReturnValue({ status: "disconnected" } as any);
+    render(<CreateCampaign />);
+
+    expect(
+      screen.getByText("createCampaign.connectWalletPrompt")
+    ).toBeInTheDocument();
+  });
+
+  it("muestra errores de validación por valores cortos o formato incorrecto", async () => {
+    const user = userEvent.setup();
+    render(<CreateCampaign />);
+
+    await user.type(screen.getByLabelText("createCampaign.campaignTitleLabel"), "ab");
+    await user.type(screen.getByLabelText("createCampaign.descriptionLabel"), "corta");
+    await user.type(screen.getByLabelText("createCampaign.ethLabel"), "abc");
+    await user.type(screen.getByLabelText("createCampaign.deadlineLabel"), "99-99-9999");
+
+    fireEvent.click(screen.getByRole("button", { name: "createCampaign.submit" }));
+
+    expect(screen.getByText("createCampaign.validation.titleMinLength")).toBeInTheDocument();
+    expect(screen.getByText("createCampaign.validation.descriptionMinLength")).toBeInTheDocument();
+    expect(screen.getByText("createCampaign.validation.goalInvalid")).toBeInTheDocument();
+    expect(screen.getByText("createCampaign.validation.deadlineInvalid")).toBeInTheDocument();
+  });
+
+  it("muestra errores de validación por valores fuera de rango o fecha pasada", async () => {
+    const user = userEvent.setup();
+    render(<CreateCampaign />);
+
+    fireEvent.change(
+      screen.getByLabelText("createCampaign.campaignTitleLabel"),
+      { target: { value: "a".repeat(81) } }
+    );
+    fireEvent.change(
+      screen.getByLabelText("createCampaign.descriptionLabel"),
+      { target: { value: "a".repeat(1001) } }
+    );
+    await user.type(screen.getByLabelText("createCampaign.ethLabel"), "0");
+    await user.type(screen.getByLabelText("createCampaign.deadlineLabel"), "01-01-2020");
+
+    fireEvent.click(screen.getByRole("button", { name: "createCampaign.submit" }));
+
+    expect(screen.getByText("createCampaign.validation.titleMaxLength")).toBeInTheDocument();
+    expect(screen.getByText("createCampaign.validation.descriptionMaxLength")).toBeInTheDocument();
+    expect(screen.getByText("createCampaign.validation.goalPositive")).toBeInTheDocument();
+    expect(screen.getByText("createCampaign.validation.deadlineFuture")).toBeInTheDocument();
   });
 });
