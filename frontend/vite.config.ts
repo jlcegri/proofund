@@ -9,7 +9,7 @@ export default defineConfig({
     environment: 'jsdom',
     coverage: {
       provider: 'v8',
-      exclude: ['src/i18n/**']
+      exclude: ['src/i18n/**', 'src/contracts/**', 'assets/**']
     },
   },
 })

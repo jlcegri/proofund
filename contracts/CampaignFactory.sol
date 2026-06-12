@@ -4,7 +4,6 @@ import './Campaign.sol';
 
 contract CampaignFactory {
     address[] public campaigns;
-    mapping(address => address[]) public campaignsByOwner;
 
     event CampaignCreated(
         address indexed owner,
@@ -18,7 +17,6 @@ contract CampaignFactory {
         Campaign campaign = new Campaign(msg.sender, goalAmount, deadline, metadataURI);
 
         campaigns.push(address(campaign));
-        campaignsByOwner[msg.sender].push(address(campaign));
 
         emit CampaignCreated(msg.sender, address(campaign), goalAmount, deadline, metadataURI);
 
@@ -27,9 +25,5 @@ contract CampaignFactory {
 
     function getCampaigns() external view returns (address[] memory) {
         return campaigns;
-    }
-
-    function getCampaignsByOwner(address owner) external view returns (address[] memory) {
-        return campaignsByOwner[owner];
     }
 }
