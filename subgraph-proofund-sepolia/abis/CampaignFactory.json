@@ -44,16 +44,6 @@
     "stateMutability": "view"
   },
   {
-    "name": "campaignsByOwner",
-    "type": "function",
-    "inputs": [
-      { "name": "", "type": "address", "internalType": "address" },
-      { "name": "", "type": "uint256", "internalType": "uint256" }
-    ],
-    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
-    "stateMutability": "view"
-  },
-  {
     "name": "createCampaign",
     "type": "function",
     "inputs": [
@@ -68,17 +58,6 @@
     "name": "getCampaigns",
     "type": "function",
     "inputs": [],
-    "outputs": [
-      { "name": "", "type": "address[]", "internalType": "address[]" }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "name": "getCampaignsByOwner",
-    "type": "function",
-    "inputs": [
-      { "name": "owner", "type": "address", "internalType": "address" }
-    ],
     "outputs": [
       { "name": "", "type": "address[]", "internalType": "address[]" }
     ],

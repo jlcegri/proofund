@@ -8,9 +8,9 @@ dataSources:
     name: CampaignFactory
     network: sepolia
     source:
-      address: "0x20dAE87b9fb29f0d019AbBe4634177D3683ad558"
+      address: "0x1971f060774B1974090ed8EF48E35D53a7D5003e"
       abi: CampaignFactory
-      startBlock: 10858837
+      startBlock: 11048384
     mapping:
       kind: ethereum/events
       apiVersion: 0.0.9
@@ -24,32 +24,3 @@ dataSources:
         - event: CampaignCreated(indexed address,indexed address,uint256,uint256,string)
           handler: handleCampaignCreated
       file: ./src/campaign-factory.ts
-
-templates:
-  - kind: ethereum/contract
-    name: Campaign
-    network: sepolia
-    source:
-      abi: Campaign
-    mapping:
-      kind: ethereum/events
-      apiVersion: 0.0.9
-      language: wasm/assemblyscript
-      entities:
-        - Campaign
-        - Contribution
-        - Refund
-        - Withdrawal
-      abis:
-        - name: Campaign
-          file: ./abis/Campaign.json
-      eventHandlers:
-        - event: Funded(indexed address,uint256)
-          handler: handleFunded
-        - event: Withdrawn(indexed address,uint256)
-          handler: handleWithdrawn
-        - event: Refunded(indexed address,uint256)
-          handler: handleRefunded
-        - event: CampaignFinished(uint8)
-          handler: handleCampaignFinished
-      file: ./src/campaign.ts

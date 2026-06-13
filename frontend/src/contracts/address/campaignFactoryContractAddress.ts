@@ -1,2 +1,2 @@
 export const campaignFactoryContractAddress =
-  "0x20dAE87b9fb29f0d019AbBe4634177D3683ad558" as const;
+  "0x1971f060774B1974090ed8EF48E35D53a7D5003e" as const;

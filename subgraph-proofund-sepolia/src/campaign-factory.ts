@@ -1,30 +1,19 @@
-import { BigInt } from "@graphprotocol/graph-ts";
-import { CampaignCreated } from "../generated/CampaignFactory/CampaignFactory";
-import { Campaign as CampaignTemplate } from "../generated/templates";
-import { Campaign } from "../generated/schema";
+import { CampaignCreated as CampaignCreatedEvent } from "../generated/CampaignFactory/CampaignFactory"
+import { CampaignCreated } from "../generated/schema"
 
-export function handleCampaignCreated(event: CampaignCreated): void {
-  let campaignAddress = event.params.campaign;
+export function handleCampaignCreated(event: CampaignCreatedEvent): void {
+  let entity = new CampaignCreated(
+    event.transaction.hash.concatI32(event.logIndex.toI32())
+  )
+  entity.owner = event.params.owner
+  entity.campaign = event.params.campaign
+  entity.goalAmount = event.params.goalAmount
+  entity.deadline = event.params.deadline
+  entity.metadataURI = event.params.metadataURI
 
-  let campaign = new Campaign(campaignAddress);
+  entity.blockNumber = event.block.number
+  entity.blockTimestamp = event.block.timestamp
+  entity.transactionHash = event.transaction.hash
 
-  campaign.address = campaignAddress;
-  campaign.owner = event.params.owner;
-  campaign.goalAmount = event.params.goalAmount;
-  campaign.deadline = event.params.deadline;
-  campaign.metadataURI = event.params.metadataURI;
-
-  campaign.totalRaised = BigInt.zero();
-  campaign.totalRefunded = BigInt.zero();
-  campaign.totalWithdrawn = BigInt.zero();
-
-  campaign.status = "ACTIVE";
-
-  campaign.createdAt = event.block.timestamp;
-  campaign.createdAtBlock = event.block.number;
-  campaign.createdAtTx = event.transaction.hash;
-
-  campaign.save();
-
-  CampaignTemplate.create(campaignAddress);
+  entity.save()
 }
