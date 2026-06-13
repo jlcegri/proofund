@@ -9,15 +9,10 @@ dotenv.config();
 
 const app = express();
 
-const PORT = process.env.PORT;
 const PINATA_JWT = process.env.PINATA_JWT;
 
 if (!PINATA_JWT) {
   throw new Error("PINATA_JWT is missing in .env file");
-}
-
-if (!PORT) {
-  throw new Error("PORT is missing in .env file");
 }
 
 app.use(
@@ -147,6 +142,6 @@ app.use((error, req, res, next) => {
   return next(error);
 });
 
-app.listen(PORT, () => {
-  console.log(`Proofund backend running on http://localhost:${PORT}`);
+app.listen(3001, () => {
+  console.log(`Proofund backend running on http://localhost:3001`);
 });

@@ -1,11 +1,49 @@
-type CampaignCreated @entity(immutable: true) {
+type Campaign @entity(immutable: false) {
   id: Bytes!
-  owner: Bytes! # address
-  campaign: Bytes! # address
-  goalAmount: BigInt! # uint256
-  deadline: BigInt! # uint256
-  metadataURI: String! # string
+  address: Bytes!
+  owner: Bytes!
+  goalAmount: BigInt!
+  deadline: BigInt!
+  metadataURI: String!
+  totalRaised: BigInt!
+  totalRefunded: BigInt!
+  totalWithdrawn: BigInt!
+  status: String!
+  createdAt: BigInt!
+  createdAtBlock: BigInt!
+  createdAtTx: Bytes!
+
+  contributions: [Contribution!]! @derivedFrom(field: "campaign")
+  refunds: [Refund!]! @derivedFrom(field: "campaign")
+  withdrawals: [Withdrawal!]! @derivedFrom(field: "campaign")
+}
+
+type Contribution @entity(immutable: true) {
+  id: Bytes!
+  campaign: Campaign!
+  user: Bytes!
+  amount: BigInt!
+  timestamp: BigInt!
   blockNumber: BigInt!
-  blockTimestamp: BigInt!
+  transactionHash: Bytes!
+}
+
+type Refund @entity(immutable: true) {
+  id: Bytes!
+  campaign: Campaign!
+  user: Bytes!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
+  transactionHash: Bytes!
+}
+
+type Withdrawal @entity(immutable: true) {
+  id: Bytes!
+  campaign: Campaign!
+  user: Bytes!
+  amount: BigInt!
+  timestamp: BigInt!
+  blockNumber: BigInt!
   transactionHash: Bytes!
 }

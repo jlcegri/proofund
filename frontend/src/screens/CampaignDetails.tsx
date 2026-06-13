@@ -85,8 +85,8 @@ const userWithdrawalQuery = gql`
   }
 `;
 
-const url = import.meta.env.VITE_API_URL;
-const token = import.meta.env.VITE_TOKEN;
+const url = "https://api.studio.thegraph.com/query/1749481/subgraph-proofund-sepolia/version/latest";
+const token = "7da61121a8d740ce7f7d93168a0aab4a";
 const headers = { Authorization: `Bearer ${token}` };
 
 type ContributionHistoryItem = {
