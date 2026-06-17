@@ -1,57 +1,248 @@
-# Sample Hardhat 3 Beta Project (`node:test` and `viem`)
+# Proofund
 
-This project showcases a Hardhat 3 Beta project using the native Node.js test runner (`node:test`) and the `viem` library for Ethereum interactions.
+Proofund es una dApp de crowdfunding sobre Ethereum Sepolia. Cada campaña se
+despliega como un contrato independiente: las aportaciones quedan custodiadas
+on-chain y solo pueden retirarse por el creador si la campaña alcanza su meta.
+Si la campaña falla, se cancela o queda sin resolver tras el periodo de gracia,
+los contribuyentes pueden reclamar su reembolso.
 
-To learn more about the Hardhat 3 Beta, please visit the [Getting Started guide](https://hardhat.org/docs/getting-started#getting-started-with-hardhat-3). To share your feedback, join our [Hardhat 3 Beta](https://hardhat.org/hardhat3-beta-telegram-group) Telegram group or [open an issue](https://github.com/NomicFoundation/hardhat/issues/new) in our GitHub issue tracker.
+## Características
 
-## Project Overview
+- Creación de campañas con objetivo en ETH, fecha límite, imagen y metadatos en IPFS.
+- Conexión de wallet con MetaMask o Coinbase Wallet mediante wagmi/viem.
+- Exploración de campañas desplegadas desde `CampaignFactory`.
+- Vista de detalle con progreso, estado, historial de aportaciones, enlaces a Sepolia Etherscan y acciones on-chain.
+- Acciones del creador: finalizar campaña, cancelar campaña y retirar fondos si fue exitosa.
+- Reembolsos para contribuyentes cuando una campaña falla, se cancela o expira el periodo de gracia.
+- Perfil de usuario con estadísticas indexadas desde The Graph.
+- Interfaz bilingüe en español e inglés.
 
-This example project includes:
+## Arquitectura
 
-- A simple Hardhat configuration file.
-- Foundry-compatible Solidity unit tests.
-- TypeScript integration tests using [`node:test`](nodejs.org/api/test.html), the new Node.js native test runner, and [`viem`](https://viem.sh/).
-- Examples demonstrating how to connect to different types of networks, including locally simulating OP mainnet.
+| Componente | Stack | Descripción |
+| --- | --- | --- |
+| `contracts/` | Solidity, OpenZeppelin, Hardhat 3 | Contratos `Campaign` y `CampaignFactory`, más tests Solidity. |
+| `ignition/` | Hardhat Ignition | Módulos de despliegue para Sepolia. |
+| `frontend/` | React 19, Vite, TypeScript, Tailwind CSS, daisyUI, wagmi, viem, i18next | Aplicación web para crear, explorar, financiar y gestionar campañas. |
+| `server/` | Express, Multer, Axios, Pinata | API local que sube imagen y metadata JSON a IPFS. |
+| `subgraph-proofund-sepolia/` | The Graph, AssemblyScript | Indexa campañas, aportaciones, reembolsos y retiradas. |
+| `test/` | node:test, Hardhat viem | Tests TypeScript para flujos de contratos. |
 
-## Usage
+## Contratos
 
-### Running Tests
+### `CampaignFactory`
 
-To run all the tests in the project, execute the following command:
+- `createCampaign(goalAmount, deadline, metadataURI)`: despliega una campaña y emite `CampaignCreated`.
+- `getCampaigns()`: devuelve las direcciones de todas las campañas creadas.
+
+Factory desplegada en Sepolia:
+
+```text
+0x1971f060774B1974090ed8EF48E35D53a7D5003e
+```
+
+### `Campaign`
+
+Estados:
+
+```text
+ACTIVE -> SUCCESS | FAILED | CANCELLED
+```
+
+Funciones principales:
+
+- `fund()`: permite aportar ETH mientras la campaña esté activa y antes del deadline.
+- `finishCampaign()`: el creador marca la campaña como `SUCCESS` si alcanzó la meta o `FAILED` si venció sin alcanzarla.
+- `withdraw()`: el creador retira los fondos una sola vez cuando la campaña está en `SUCCESS`.
+- `refund()`: devuelve la aportación del usuario si la campaña no fue exitosa; si sigue activa 7 días después del deadline, la cancela y habilita reembolsos.
+- `cancelCampaign()`: el creador cancela una campaña activa.
+
+## Requisitos
+
+- Node.js reciente compatible con Hardhat 3 y Vite.
+- npm.
+- Wallet con Sepolia ETH para interactuar con la dApp.
+- JWT de Pinata para subir imágenes y metadatos a IPFS.
+- RPC de Sepolia para desplegar o verificar contratos.
+
+## Variables de entorno
+
+En la raíz del proyecto, para Hardhat:
+
+```env
+SEPOLIA_RPC_URL=https://...
+SEPOLIA_PRIVATE_KEY=...
+ETHERSCAN_API_KEY=...
+```
+
+Hardhat 3 también permite guardar secretos con su keystore:
+
+```shell
+npx hardhat keystore set SEPOLIA_RPC_URL
+npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+npx hardhat keystore set ETHERSCAN_API_KEY
+```
+
+En `server/.env`:
+
+```env
+PINATA_JWT=...
+```
+
+El frontend no requiere `.env` en el estado actual: usa Sepolia, el backend local en
+`http://localhost:3001` y la dirección de `CampaignFactory` incluida en el repo.
+
+## Instalación
+
+Instala dependencias por paquete:
+
+```shell
+npm install
+
+cd server
+npm install
+
+cd ../frontend
+npm install
+
+cd ../subgraph-proofund-sepolia
+npm install
+```
+
+## Ejecutar en local
+
+Levanta primero el backend de IPFS:
+
+```shell
+cd server
+npm run dev
+```
+
+El servidor queda disponible en:
+
+```text
+http://localhost:3001
+```
+
+Luego levanta el frontend:
+
+```shell
+cd frontend
+npm run dev
+```
+
+Vite sirve la app normalmente en:
+
+```text
+http://localhost:5173
+```
+
+Para crear campañas desde la interfaz necesitas:
+
+- Backend corriendo en `localhost:3001`.
+- Wallet conectada a Sepolia.
+- Fondos de prueba para pagar gas.
+- `PINATA_JWT` configurado en el backend.
+
+## Tests
+
+Contratos:
 
 ```shell
 npx hardhat test
 ```
 
-You can also selectively run the Solidity or `node:test` tests:
+Frontend:
 
 ```shell
-npx hardhat test solidity
-npx hardhat test nodejs
+cd frontend
+npm test
 ```
 
-### Make a deployment to Sepolia
-
-This project includes an example Ignition module to deploy the contract. You can deploy this module to a locally simulated chain or to Sepolia.
-
-To run the deployment to a local chain:
+Frontend en modo CI:
 
 ```shell
-npx hardhat ignition deploy ignition/modules/Counter.ts
+cd frontend
+npm run test:run
 ```
 
-To run the deployment to Sepolia, you need an account with funds to send the transaction. The provided Hardhat configuration includes a Configuration Variable called `SEPOLIA_PRIVATE_KEY`, which you can use to set the private key of the account you want to use.
-
-You can set the `SEPOLIA_PRIVATE_KEY` variable using the `hardhat-keystore` plugin or by setting it as an environment variable.
-
-To set the `SEPOLIA_PRIVATE_KEY` config variable using `hardhat-keystore`:
+Subgraph:
 
 ```shell
-npx hardhat keystore set SEPOLIA_PRIVATE_KEY
+cd subgraph-proofund-sepolia
+npm test
 ```
 
-After setting the variable, you can run the deployment with the Sepolia network:
+## Despliegue
+
+Desplegar `CampaignFactory` con Ignition en Sepolia:
 
 ```shell
-npx hardhat ignition deploy --network sepolia ignition/modules/Counter.ts
+npx hardhat ignition deploy ignition/modules/CampaignFactory.ts --network sepolia
 ```
+
+Verificar contratos en Etherscan, si aplica:
+
+```shell
+npx hardhat verify --network sepolia <CONTRACT_ADDRESS>
+```
+
+Después de un nuevo despliegue, actualiza estos archivos para mantener la app y
+el subgraph apuntando al contrato correcto:
+
+- `frontend/src/contracts/address/campaignFactoryContractAddress.ts`
+- `subgraph-proofund-sepolia/subgraph.yaml`
+- `ignition/deployments/chain-11155111/deployed_addresses.json`
+
+## Subgraph
+
+El subgraph escucha `CampaignCreated` en `CampaignFactory` y crea plantillas
+dinámicas para cada contrato `Campaign`. Indexa:
+
+- `Campaign`
+- `Contribution`
+- `Refund`
+- `Withdrawal`
+
+Comandos útiles:
+
+```shell
+cd subgraph-proofund-sepolia
+npm run codegen
+npm run build
+npm run deploy
+```
+
+Para entorno local con Graph Node:
+
+```shell
+docker compose up
+npm run create-local
+npm run deploy-local
+```
+
+## Estructura rápida
+
+```text
+proofund/
+|- contracts/                  # Smart contracts y tests Solidity
+|- frontend/                   # dApp React/Vite
+|- ignition/                   # Módulos y artefactos de despliegue
+|- server/                     # API de subida a IPFS con Pinata
+|- subgraph-proofund-sepolia/  # Subgraph para Sepolia
+|- test/                       # Tests Hardhat TypeScript
+|- hardhat.config.ts
+`- package.json
+```
+
+## Flujo funcional
+
+1. El creador completa el formulario de campaña en el frontend.
+2. El backend sube la imagen a Pinata y crea un JSON de metadata en IPFS.
+3. El frontend llama a `CampaignFactory.createCampaign(...)` con objetivo, deadline y `metadataURI`.
+4. Los usuarios aportan ETH llamando a `fund()` desde la vista de detalle.
+5. El creador finaliza la campaña:
+   - `SUCCESS` si se alcanzó la meta.
+   - `FAILED` si venció sin alcanzar la meta.
+6. Si fue exitosa, el creador llama a `withdraw()`.
+7. Si no fue exitosa, los contribuyentes llaman a `refund()`.
